@@ -143,13 +143,18 @@ public class GeminiClient implements LLMClient {
         generationConfig.put("maxOutputTokens", 65536);
 
         // Generation-aware thinking config
-        if (model.contains("gemini-3")) {
-            // Gemini 3 uses thinkingLevel (HIGH, MEDIUM, MINIMAL)
+        log.info("Building request for model: '{}', thinkingLevel: {}", model, thinkingLevel);
+        if (model.startsWith("gemini-3-")) {
+            // Gemini 3 uses thinkingLevel (HIGH, MEDIUM, LOW, MINIMAL)
             generationConfig.put("thinkingConfig", Map.of("thinkingLevel", thinkingLevel.toUpperCase()));
+            log.info("Using Gemini 3 thinking config with level: {}", thinkingLevel.toUpperCase());
         } else if (model.toLowerCase().contains("thinking")) {
             // Gemini 2.0 Flash Thinking uses thinkingBudget
             int thinkingBudget = "minimal".equalsIgnoreCase(thinkingLevel) ? 0 : 8192;
             generationConfig.put("thinkingConfig", Map.of("thinkingBudget", thinkingBudget));
+            log.info("Using Gemini 2.0 thinking config with budget: {}", thinkingBudget);
+        } else {
+            log.info("No thinking config applied for model: {}", model);
         }
 
         // Response schema for structured output
@@ -175,13 +180,18 @@ public class GeminiClient implements LLMClient {
         generationConfig.put("maxOutputTokens", 65536);
 
         // Generation-aware thinking config
-        if (model.contains("gemini-3")) {
-            // Gemini 3 uses thinkingLevel (HIGH, MEDIUM, MINIMAL)
+        log.info("Building request with history for model: '{}', thinkingLevel: {}", model, thinkingLevel);
+        if (model.startsWith("gemini-3-")) {
+            // Gemini 3 uses thinkingLevel (HIGH, MEDIUM, LOW, MINIMAL)
             generationConfig.put("thinkingConfig", Map.of("thinkingLevel", thinkingLevel.toUpperCase()));
+            log.info("Using Gemini 3 thinking config with level: {}", thinkingLevel.toUpperCase());
         } else if (model.toLowerCase().contains("thinking")) {
             // Gemini 2.0 Flash Thinking uses thinkingBudget
             int thinkingBudget = "minimal".equalsIgnoreCase(thinkingLevel) ? 0 : 8192;
             generationConfig.put("thinkingConfig", Map.of("thinkingBudget", thinkingBudget));
+            log.info("Using Gemini 2.0 thinking config with budget: {}", thinkingBudget);
+        } else {
+            log.info("No thinking config applied for model: {}", model);
         }
 
         // Response schema for structured output
@@ -227,35 +237,74 @@ public class GeminiClient implements LLMClient {
         log.info("→ Calling Gemini API: model={}, thinking={}, promptSize={}KB",
                 model, thinkingLevel, promptLength / 1024);
 
-        String responseBody = webClient.post()
-                .uri(uriBuilder -> uriBuilder
-                        .path(model + ":generateContent")
-                        .queryParam("key", config.getGemini().getApiKey())
-                        .build())
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(request)
-                .retrieve()
-                .bodyToMono(String.class)
-                .timeout(Duration.ofSeconds(60)) // 60 second timeout
-                .retryWhen(Retry.backoff(3, Duration.ofSeconds(30))
-                        .filter(throwable -> throwable instanceof WebClientResponseException.TooManyRequests)
-                        .doBeforeRetry(
-                                retrySignal -> log.warn("Gemini API rate limited (429). Retrying... (Attempt {})",
-                                        retrySignal.totalRetriesInARow() + 1))
-                        .onRetryExhaustedThrow((retryBackoffSpec, retrySignal) -> retrySignal.failure()))
-                .doOnError(throwable -> {
-                    long elapsed = System.currentTimeMillis() - startTime;
-                    log.error("✗ Gemini API call failed after {}ms: {}", elapsed, throwable.getMessage());
-                })
-                .block();
+        // Log the full request for debugging
+        try {
+            String requestJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(request);
+            log.debug("Full request body: {}", requestJson);
+        } catch (Exception e) {
+            log.warn("Failed to serialize request for logging", e);
+        }
+
+        // Build the URI to log it
+        String uri = GEMINI_API_BASE + model + ":generateContent?key=" +
+                (config.getGemini().getApiKey().substring(0, Math.min(10, config.getGemini().getApiKey().length())) + "...");
+        log.info("Request URI: {}", uri.replace(config.getGemini().getApiKey().substring(0, Math.min(10, config.getGemini().getApiKey().length())), "***"));
+
+        String responseBody;
+        try {
+            responseBody = webClient.post()
+                    .uri(uriBuilder -> uriBuilder
+                            .path(model + ":generateContent")
+                            .queryParam("key", config.getGemini().getApiKey())
+                            .build())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(request)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .timeout(Duration.ofSeconds(120)) // 120 second timeout for complex patch generation
+                    .retryWhen(Retry.backoff(3, Duration.ofSeconds(30))
+                            .filter(throwable -> throwable instanceof WebClientResponseException.TooManyRequests)
+                            .doBeforeRetry(
+                                    retrySignal -> log.warn("Gemini API rate limited (429). Retrying... (Attempt {})",
+                                            retrySignal.totalRetriesInARow() + 1))
+                            .onRetryExhaustedThrow((retryBackoffSpec, retrySignal) -> retrySignal.failure()))
+                    .doOnError(throwable -> {
+                        long elapsed = System.currentTimeMillis() - startTime;
+                        log.error("✗ Gemini API call failed after {}ms: {}", elapsed, throwable.getMessage(), throwable);
+                        if (throwable instanceof WebClientResponseException) {
+                            WebClientResponseException ex = (WebClientResponseException) throwable;
+                            log.error("Response status: {}, body: {}", ex.getStatusCode(), ex.getResponseBodyAsString());
+                        }
+                    })
+                    .block();
+        } catch (Exception e) {
+            long elapsed = System.currentTimeMillis() - startTime;
+            log.error("Exception during Gemini API call after {}ms", elapsed, e);
+            throw new RuntimeException("Failed to call Gemini API: " + e.getMessage(), e);
+        }
 
         long elapsed = System.currentTimeMillis() - startTime;
         log.info("✓ Gemini API responded in {}ms, size={}KB", elapsed,
                 responseBody != null ? responseBody.length() / 1024 : 0);
 
+        // Validate response is not null or empty
+        if (responseBody == null || responseBody.trim().isEmpty()) {
+            log.error("Gemini API returned null or empty response");
+            throw new RuntimeException("Empty response from Gemini API");
+        }
+
         // Extract text from response
         try {
             JsonNode root = objectMapper.readTree(responseBody);
+
+            // Check for error response
+            if (root.has("error")) {
+                String errorMessage = root.path("error").path("message").asText("Unknown error");
+                String errorCode = root.path("error").path("code").asText("UNKNOWN");
+                log.error("Gemini API returned error: code={}, message={}", errorCode, errorMessage);
+                throw new RuntimeException("Gemini API error: " + errorMessage);
+            }
+
             JsonNode candidates = root.path("candidates");
             if (candidates.isArray() && !candidates.isEmpty()) {
                 // Check for truncation due to token limit
@@ -278,19 +327,29 @@ public class GeminiClient implements LLMClient {
                         if (part.has("text")) {
                             String textResponse = part.get("text").asText();
                             log.info("Extracted text response length: {} chars", textResponse.length());
+
+                            if (textResponse.trim().isEmpty()) {
+                                log.error("Gemini returned empty text response. Full response: {}", responseBody);
+                                throw new RuntimeException("Empty text in Gemini response");
+                            }
+
                             return textResponse;
                         }
                     }
-                    log.warn("Gemini response has parts but no 'text' part found in: {}", responseBody);
+                    log.error("Gemini response has parts but no 'text' part found. Full response: {}", responseBody);
+                    throw new RuntimeException("No text part found in Gemini response");
+                } else {
+                    log.error("Gemini response has no parts. Full response: {}", responseBody);
+                    throw new RuntimeException("No parts in Gemini response");
                 }
             } else {
-                log.warn("Gemini response has no candidates: {}", responseBody);
+                log.error("Gemini response has no candidates. Full response: {}", responseBody);
+                throw new RuntimeException("No candidates in Gemini response");
             }
         } catch (JsonProcessingException e) {
             log.error("Failed to parse Gemini response JSON: {}", responseBody, e);
+            throw new RuntimeException("Failed to parse Gemini response: " + e.getMessage(), e);
         }
-
-        return responseBody;
     }
 
     private String buildSummarizePrompt(String logTail, String tool, String command) {
@@ -353,6 +412,13 @@ public class GeminiClient implements LLMClient {
 
     private PatchProposal parsePatchProposal(String json) throws JsonProcessingException {
         JsonNode node = objectMapper.readTree(json);
+
+        // Validate JSON structure
+        if (!node.has("unified_diff")) {
+            log.error("Gemini response missing 'unified_diff' field. Full JSON: {}", json);
+            throw new RuntimeException("Invalid patch proposal: missing unified_diff field");
+        }
+
         String diff = node.path("unified_diff").asText("");
 
         // Log diff details for debugging (INFO level for visibility)
@@ -360,7 +426,14 @@ public class GeminiClient implements LLMClient {
             log.info("Parsing patch proposal. unified_diff length: {}, first 300 chars: {}",
                     diff.length(), diff.substring(0, Math.min(300, diff.length())));
         } else {
-            log.warn("Parsing patch proposal: unified_diff is EMPTY");
+            log.error("Parsing patch proposal: unified_diff is EMPTY. Full JSON: {}", json);
+            throw new RuntimeException("Invalid patch proposal: unified_diff is empty");
+        }
+
+        // Validate that diff looks like a proper unified diff
+        if (!diff.trim().startsWith("diff --git")) {
+            log.warn("unified_diff doesn't start with 'diff --git'. First 100 chars: {}",
+                    diff.substring(0, Math.min(100, diff.length())));
         }
 
         return new PatchProposal(

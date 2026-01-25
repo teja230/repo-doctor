@@ -126,29 +126,39 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
     // Fetch job data
     const fetchJob = useCallback(async () => {
         try {
+            console.log(`[fetchJob] Fetching job: ${API_URL}/api/jobs/${jobId}`);
             const response = await fetch(`${API_URL}/api/jobs/${jobId}`);
+            console.log(`[fetchJob] Response status: ${response.status}`);
             if (response.ok) {
                 const data = await response.json();
+                console.log(`[fetchJob] Job data:`, data);
                 setJob(data);
+            } else {
+                console.error(`[fetchJob] Failed with status ${response.status}: ${response.statusText}`);
             }
         } catch (error) {
-            console.error("Failed to fetch job:", error);
+            console.error("[fetchJob] Failed to fetch job:", error);
         }
     }, [jobId]);
 
     // Fetch attempts
     const fetchAttempts = useCallback(async () => {
         try {
+            console.log(`[fetchAttempts] Fetching attempts: ${API_URL}/api/jobs/${jobId}/attempts`);
             const response = await fetch(`${API_URL}/api/jobs/${jobId}/attempts`);
+            console.log(`[fetchAttempts] Response status: ${response.status}`);
             if (response.ok) {
                 const data = await response.json();
+                console.log(`[fetchAttempts] Attempts data:`, data);
                 setAttempts(data);
                 if (data.length > 0 && selectedAttempt === null) {
                     setSelectedAttempt(data[data.length - 1].attemptNumber);
                 }
+            } else {
+                console.error(`[fetchAttempts] Failed with status ${response.status}: ${response.statusText}`);
             }
         } catch (error) {
-            console.error("Failed to fetch attempts:", error);
+            console.error("[fetchAttempts] Failed to fetch attempts:", error);
         }
     }, [jobId, selectedAttempt]);
 
@@ -178,32 +188,39 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
 
     // SSE connection
     useEffect(() => {
+        console.log(`[SSE] Connecting to: ${API_URL}/api/jobs/${jobId}/events`);
         const eventSource = new EventSource(`${API_URL}/api/jobs/${jobId}/events`);
 
         eventSource.onopen = () => {
+            console.log("[SSE] Connection opened");
             setConnected(true);
         };
 
         eventSource.onmessage = (event) => {
+            console.log("[SSE] Message received:", event.data);
             try {
                 const data = JSON.parse(event.data);
+                console.log("[SSE] Parsed event:", data);
                 setEvents((prev) => [...prev.slice(-50), data]);
 
-                // Refresh data on relevant events
-                if (["attempt_completed", "job_completed", "patch_applied"].includes(data.type)) {
+                // Refresh data on any significant event
+                if (["attempt_started", "attempt_completed", "job_completed", "patch_applied", "patch_proposed", "run_completed"].includes(data.type)) {
+                    console.log(`[SSE] Triggering refresh for event type: ${data.type}`);
                     fetchJob();
                     fetchAttempts();
                 }
             } catch (e) {
-                console.error("Failed to parse SSE event:", e);
+                console.error("[SSE] Failed to parse SSE event:", e);
             }
         };
 
-        eventSource.onerror = () => {
+        eventSource.onerror = (error) => {
+            console.error("[SSE] Connection error:", error);
             setConnected(false);
         };
 
         return () => {
+            console.log("[SSE] Closing connection");
             eventSource.close();
         };
     }, [jobId, fetchJob, fetchAttempts]);
@@ -526,11 +543,11 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                         </div>
                     </div>
 
-                    {/* Live Events */}
+                    {/* Events */}
                     <div className="card mt-6">
-                        <h2 className="text-lg font-semibold mb-4">Live Events</h2>
+                        <h2 className="text-lg font-semibold mb-4">Events</h2>
                         <div className="space-y-2 max-h-64 overflow-y-auto">
-                            {events.slice().reverse().map((event, i) => (
+                            {events.map((event, i) => (
                                 <div key={i} className="text-sm p-2 bg-gray-800/50 rounded flex items-center gap-2">
                                     <span className={`w-2 h-2 rounded-full ${event.type.includes("completed") ? "bg-green-500" :
                                         event.type.includes("failed") || event.type.includes("error") ? "bg-red-500" :

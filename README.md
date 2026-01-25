@@ -44,8 +44,8 @@ cd frontend && npm install && npm run dev
 
 1. **Submit Repository**: Upload a ZIP file or provide a GitHub URL
 2. **Baseline Run (Attempt 0)**: Run tests in a sandboxed Docker container
-3. **Diagnose**: Gemini 3 Flash analyzes failure logs with `thinking_level="minimal"`
-4. **Patch**: Gemini 3 Flash proposes a fix with `thinking_level="high"` for deep reasoning
+3. **Diagnose**: Gemini 3 Flash analyzes failure logs with `thinkingLevel="MINIMAL"` for fast log parsing
+4. **Patch**: Gemini 3 Flash proposes a fix with `thinkingLevel="LOW"` for balanced reasoning
 5. **Apply & Test**: Apply the unified diff and rerun tests
 6. **Repeat**: Continue until tests pass or max attempts reached
 
@@ -65,10 +65,14 @@ cd frontend && npm install && npm run dev
 
 ### A) Thinking Control
 
-| Task | Model | `thinking_level` | Why |
-|------|-------|------------------|-----|
-| Log Analysis | `gemini-3-flash` | `minimal` | Fast structured extraction |
-| Patch Generation | `gemini-3-flash` | `high` | Deep reasoning for safe fixes |
+Gemini 3 introduces `thinkingLevel` control (MINIMAL, LOW, MEDIUM, HIGH) to balance speed vs. reasoning depth.
+
+| Task             | Model                    | `thinkingLevel` | Why                                                             |
+|------------------|--------------------------|-----------------|-----------------------------------------------------------------|
+| Log Analysis     | `gemini-3-flash-preview` | `MINIMAL`       | Fast structured extraction from logs - minimal reasoning needed |
+| Patch Generation | `gemini-3-flash-preview` | `LOW`           | Balanced speed and reasoning for code fixes                     |
+
+**Note:** We use `LOW` for patch generation rather than `HIGH` to optimize for fast iteration. The multi-turn history (see below) compensates by building context across attempts.
 
 ### B) Structured Outputs
 
@@ -88,26 +92,46 @@ Invalid JSON triggers `LLM_INVALID_OUTPUT` status - no hallucinated patches appl
 
 ### C) Multi-Turn History (Thought Signatures)
 
-We preserve conversation history per job using the official SDK, enabling:
+We preserve conversation history per job, enabling:
 - Reference to prior failed attempts
 - Avoiding repeated unsuccessful patches
 - Building on previous reasoning context
 
-### D) Implementation
+Each Gemini 3 response includes a `thoughtSignature` field that captures the model's internal reasoning state across turns.
+
+### D) Implementation Details
+
+**API Integration:**
+- Using Gemini API v1beta (`generativelanguage.googleapis.com/v1beta`)
+- Model: `gemini-3-flash-preview` (verified via API models endpoint)
+- Direct REST API calls via Spring WebClient (reactive, non-blocking)
+- 120-second timeout for complex patch generation
+- Automatic retry with exponential backoff on rate limits (429)
+
+**Request Configuration:**
+```java
+{
+  "thinkingConfig": {"thinkingLevel": "LOW"},  // or "MINIMAL"
+  "responseMimeType": "application/json",
+  "responseSchema": {...},  // Strict JSON schema
+  "maxOutputTokens": 65536,
+  "temperature": 0.2
+}
+```
 
 See [GeminiClient.java](backend/src/main/java/dev/repodoctor/llm/GeminiClient.java) for the full implementation.
 
 ## 📡 API Reference
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/jobs` | POST | Create job (multipart: `repoUrl` OR `repoZip`, `maxAttempts`, `allowNetwork`) |
-| `/api/jobs/{id}` | GET | Get job metadata |
-| `/api/jobs/{id}/events` | GET | SSE stream for real-time updates |
-| `/api/jobs/{id}/attempts` | GET | List all attempts |
-| `/api/jobs/{id}/attempts/{k}/diff` | GET | Get patch diff |
-| `/api/jobs/{id}/attempts/{k}/logs` | GET | Get build logs |
-| `/api/jobs/{id}/attempts/{k}/summary` | GET | Get JSON summary |
+| Endpoint                              | Method | Description                                                                   |
+|---------------------------------------|--------|-------------------------------------------------------------------------------|
+| `/api/jobs`                           | POST   | Create job (multipart: `repoUrl` OR `repoZip`, `maxAttempts`, `allowNetwork`) |
+| `/api/jobs/{id}`                      | GET    | Get job metadata                                                              |
+| `/api/jobs/{id}/events`               | GET    | SSE stream for real-time updates                                              |
+| `/api/jobs/{id}/attempts`             | GET    | List all attempts                                                             |
+| `/api/jobs/{id}/attempts/{k}/diff`    | GET    | Get patch diff                                                                |
+| `/api/jobs/{id}/attempts/{k}/logs`    | GET    | Get build logs                                                                |
+| `/api/jobs/{id}/attempts/{k}/summary` | GET    | Get JSON summary                                                              |
 
 ### SSE Events
 
@@ -163,13 +187,13 @@ The sample has a `Calculator.add()` bug that returns subtraction instead of addi
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `GEMINI_API_KEY` | - | **Required** for AI fixes. Get from [Google AI Studio](https://aistudio.google.com/apikey) |
-| `CORS_ALLOWED_ORIGINS` | `http://localhost:3000,http://localhost:8080` | Comma-separated list of allowed frontend origins |
-| `H2_CONSOLE_ENABLED` | `false` | Enable H2 database console (only for debugging) |
-| `ARTIFACTS_PATH` | `./artifacts` | Storage for logs/diffs |
-| `WORKSPACES_PATH` | `./workspaces` | Cloned repo storage |
+| Variable               | Default                                       | Description                                                                                |
+|------------------------|-----------------------------------------------|--------------------------------------------------------------------------------------------|
+| `GEMINI_API_KEY`       | -                                             | **Required** for AI fixes. Get from [Google AI Studio](https://aistudio.google.com/apikey) |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:3000,http://localhost:8080` | Comma-separated list of allowed frontend origins                                           |
+| `H2_CONSOLE_ENABLED`   | `false`                                       | Enable H2 database console (only for debugging)                                            |
+| `ARTIFACTS_PATH`       | `./artifacts`                                 | Storage for logs/diffs                                                                     |
+| `WORKSPACES_PATH`      | `./workspaces`                                | Cloned repo storage                                                                        |
 
 ### Deployment to Production
 
