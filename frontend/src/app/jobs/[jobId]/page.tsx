@@ -694,7 +694,7 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                             </h3>
                                             <div className="flex items-center gap-3 flex-wrap">
                                                 <span className="px-3 py-1 bg-purple-500/20 text-purple-400 rounded-full text-sm">
-                                                    gemini-2.5-flash
+                                                    gemini-3-flash
                                                 </span>
                                                 <span className="text-sm text-gray-500">
                                                     Thinking Level: <span className="text-white">Low</span> (optimized for patch generation)
