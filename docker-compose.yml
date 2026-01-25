@@ -1,0 +1,46 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - SPRING_PROFILES_ACTIVE=docker
+      - ARTIFACTS_PATH=/tmp/repodoctor/artifacts
+      - WORKSPACES_PATH=/tmp/repodoctor/workspaces
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8080}
+      - H2_CONSOLE_ENABLED=${H2_CONSOLE_ENABLED:-false}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/repodoctor:/tmp/repodoctor
+    depends_on:
+      - runner-build
+    networks:
+      - repodoctor
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8080
+    depends_on:
+      - backend
+    networks:
+      - repodoctor
+
+  # This service just builds the runner image and exits
+  runner-build:
+    build:
+      context: ./runner
+      dockerfile: Dockerfile
+    image: repodoctor-runner:latest
+    command: [ "echo", "Runner image built" ]
+
+networks:
+  repodoctor:
+    driver: bridge

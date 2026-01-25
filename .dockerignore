@@ -1,0 +1,39 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local env files
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+backend/target/
+frontend/.next/
+frontend/node_modules/
+frontend/out/
+
+# Data directories (created at runtime)
+artifacts/
+workspaces/
+data/
+
+# Logs
+*.log
+
+# Documentation (keep in repo but not in build context)
+*.md
+!README.md

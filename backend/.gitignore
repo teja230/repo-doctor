@@ -1,0 +1,67 @@
+HELP.md
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/
+
+# Build cache directories
+.gradle/
+*.log
+
+# Application runtime data
+workspaces/
+artifacts/
+
+# Database files (H2, SQLite, etc.)
+data/
+*.db
+*.mv.db
+*.trace.db
+*.h2.db
+
+# Maven
+target/
+.mvn/wrapper/maven-wrapper.jar
+
+# Test output
+test-output/
+*.exec
+
+# Spring Boot
+spring-boot-devtools.properties
+
+# JVM crash logs
+hs_err_pid*
+replay_pid*

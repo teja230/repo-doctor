@@ -1,0 +1,36 @@
+# Maven build artifacts
+target/
+*.jar
+*.war
+*.ear
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local env files
+.env
+.env.local
+.env.*.local
+
+# Git
+.git/
+.gitignore
+
+# Test coverage
+.coverage
+coverage/
+
+# Maven wrapper (we'll download if needed)
+.mvn/wrapper/maven-wrapper.jar
