@@ -25,6 +25,105 @@ export default function Home() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [urlValidation, setUrlValidation] = useState<{ valid: boolean; message: string } | null>(null);
+
+  /**
+   * Validates and sanitizes GitHub repository URLs.
+   *
+   * Checks for:
+   * - Valid URL format
+   * - GitHub.com domain (including www)
+   * - Proper owner/repo path structure
+   * - No embedded credentials
+   * - No query params or fragments (potential injection)
+   * - HTTPS protocol (security)
+   */
+  const validateGitHubUrl = (url: string): { valid: boolean; message: string; cleanUrl?: string } => {
+    if (!url || !url.trim()) {
+      return { valid: true, message: "" }; // Empty is OK (user might use ZIP instead)
+    }
+
+    const trimmedUrl = url.trim();
+
+    // Check for embedded credentials (user:pass@)
+    if (/@/.test(trimmedUrl) && /:.*@/.test(trimmedUrl)) {
+      return { valid: false, message: "URLs with credentials are not allowed" };
+    }
+
+    // Check for query parameters or fragments (potential injection)
+    if (/[?#]/.test(trimmedUrl)) {
+      return { valid: false, message: "URL should not contain query parameters or fragments" };
+    }
+
+    // Try to parse as URL
+    let parsed: URL;
+    try {
+      // Auto-add https:// if missing protocol
+      const urlToParse = trimmedUrl.match(/^https?:\/\//) ? trimmedUrl : `https://${trimmedUrl}`;
+      parsed = new URL(urlToParse);
+    } catch {
+      return { valid: false, message: "Invalid URL format" };
+    }
+
+    // Must be HTTPS (or HTTP which we'll upgrade)
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      return { valid: false, message: "Only HTTP/HTTPS URLs are supported" };
+    }
+
+    // Must be GitHub domain
+    const hostname = parsed.hostname.toLowerCase();
+    if (!["github.com", "www.github.com"].includes(hostname)) {
+      return { valid: false, message: "Only GitHub repositories are supported" };
+    }
+
+    // Check path structure: must be /owner/repo
+    let path = parsed.pathname;
+
+    // Remove .git suffix if present
+    if (path.endsWith(".git")) {
+      path = path.slice(0, -4);
+    }
+
+    // Remove trailing slashes
+    path = path.replace(/\/+$/, "");
+
+    // Split path and validate
+    const parts = path.split("/").filter(p => p.length > 0);
+
+    if (parts.length < 2) {
+      return { valid: false, message: "URL must include owner and repository (e.g., github.com/owner/repo)" };
+    }
+
+    if (parts.length > 2) {
+      // Could be github.com/owner/repo/tree/branch - extract just owner/repo
+      // This is a common copy-paste mistake
+    }
+
+    const owner = parts[0];
+    const repo = parts[1];
+
+    // Validate owner/repo names (GitHub rules: alphanumeric, hyphens, underscores)
+    const validNamePattern = /^[a-zA-Z0-9_.-]+$/;
+
+    if (!validNamePattern.test(owner)) {
+      return { valid: false, message: "Invalid repository owner name" };
+    }
+
+    if (!validNamePattern.test(repo)) {
+      return { valid: false, message: "Invalid repository name" };
+    }
+
+    // Reserved names that can't be repo names
+    const reservedPaths = ["settings", "pulls", "issues", "actions", "projects", "wiki", "security", "pulse", "graphs"];
+    if (reservedPaths.includes(repo.toLowerCase())) {
+      return { valid: false, message: "URL appears to be a GitHub page, not a repository" };
+    }
+
+    // Build clean URL
+    const cleanUrl = `https://github.com/${owner}/${repo}`;
+
+    return { valid: true, message: "Valid GitHub repository", cleanUrl };
+  };
 
   // Fetch recent jobs on mount
   useEffect(() => {
@@ -82,7 +181,14 @@ export default function Home() {
       if (selectedFile) {
         formData.append("repoZip", selectedFile);
       } else if (repoUrl) {
-        formData.append("repoUrl", repoUrl);
+        // Validate and clean the URL
+        const validation = validateGitHubUrl(repoUrl);
+        if (!validation.valid) {
+          setError(validation.message);
+          setLoading(false);
+          return;
+        }
+        formData.append("repoUrl", validation.cleanUrl || repoUrl);
       } else {
         setError("Please provide a GitHub URL or upload a ZIP file");
         setLoading(false);
@@ -146,16 +252,38 @@ export default function Home() {
                 GitHub Repository URL
               </label>
               <input
-                type="url"
+                type="text"
                 value={repoUrl}
                 onChange={(e) => {
-                  setRepoUrl(e.target.value);
+                  const value = e.target.value;
+                  setRepoUrl(value);
                   setSelectedFile(null);
+
+                  // Real-time validation (debounced effect via state)
+                  if (value.trim()) {
+                    const result = validateGitHubUrl(value);
+                    setUrlValidation(result);
+                  } else {
+                    setUrlValidation(null);
+                  }
                 }}
                 placeholder="https://github.com/username/repo"
-                className="input"
+                className={`input ${urlValidation
+                  ? urlValidation.valid
+                    ? "border-green-500/50 focus:border-green-500"
+                    : "border-red-500/50 focus:border-red-500"
+                  : ""
+                  }`}
                 disabled={!!selectedFile}
               />
+              {/* Validation feedback */}
+              {urlValidation && repoUrl && (
+                <div className={`mt-2 text-sm flex items-center gap-2 ${urlValidation.valid ? "text-green-400" : "text-red-400"
+                  }`}>
+                  <span>{urlValidation.valid ? "✓" : "✕"}</span>
+                  <span>{urlValidation.message}</span>
+                </div>
+              )}
             </div>
 
             <div className="relative flex items-center gap-4 mb-6">
@@ -273,7 +401,7 @@ export default function Home() {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading || (!repoUrl && !selectedFile)}
+              disabled={loading || (!repoUrl && !selectedFile) || (!!repoUrl && urlValidation !== null && !urlValidation.valid)}
               className="btn btn-primary w-full text-lg py-4"
             >
               {loading ? (
@@ -293,11 +421,12 @@ export default function Home() {
           </form>
 
           {/* Features */}
-          <div className="grid grid-cols-3 gap-4 mt-8 fade-in" style={{ animationDelay: "0.2s" }}>
+          <div className="grid grid-cols-4 gap-4 mt-8 fade-in" style={{ animationDelay: "0.2s" }}>
             {[
               { icon: "🔍", title: "Diagnose", desc: "AI-powered failure analysis" },
               { icon: "🔧", title: "Patch", desc: "Automatic code fixes" },
               { icon: "✅", title: "Verify", desc: "Run tests until green" },
+              { icon: "🚀", title: "Create PR", desc: "Submit fix to GitHub" },
             ].map((feature, i) => (
               <div key={i} className="text-center p-4">
                 <div className="text-3xl mb-2">{feature.icon}</div>

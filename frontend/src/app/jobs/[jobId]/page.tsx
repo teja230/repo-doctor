@@ -120,6 +120,11 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
     const [copySuccess, setCopySuccess] = useState(false);
     const [copyDiffSuccess, setCopyDiffSuccess] = useState(false);
 
+    // GitHub PR creation state
+    const [githubEnabled, setGithubEnabled] = useState(false);
+    const [creatingPR, setCreatingPR] = useState(false);
+    const [prError, setPrError] = useState<string | null>(null);
+
     // Get currently selected attempt object
     const currentAttempt = attempts.find(a => a.attemptNumber === selectedAttempt);
 
@@ -179,12 +184,26 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
         }
     }, [jobId]);
 
+    // Check if GitHub PR creation is enabled
+    const checkGitHubStatus = useCallback(async () => {
+        try {
+            const response = await fetch(`${API_URL}/api/github/status`);
+            if (response.ok) {
+                const data = await response.json();
+                setGithubEnabled(data.enabled);
+            }
+        } catch (error) {
+            console.error("Failed to check GitHub status:", error);
+        }
+    }, []);
+
     // Initial load
     useEffect(() => {
         fetchJob();
         fetchAttempts();
+        checkGitHubStatus();
         setLoading(false);
-    }, [fetchJob, fetchAttempts]);
+    }, [fetchJob, fetchAttempts, checkGitHubStatus]);
 
     // SSE connection
     useEffect(() => {
@@ -332,6 +351,48 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
             setTimeout(() => setCopyDiffSuccess(false), 2000);
         } catch (err) {
             console.error("Failed to copy diff:", err);
+        }
+    };
+
+    // Initiate GitHub OAuth flow for PR creation
+    const createPullRequest = async () => {
+        if (!job || !finalAttempt) return;
+
+        // Find the successful attempt (last one with SUCCESS status, or the final attempt)
+        const successfulAttempt = [...attempts].reverse().find(a => a.status === "SUCCESS") || finalAttempt;
+
+        if (successfulAttempt.attemptNumber === 0) {
+            setPrError("Cannot create PR from baseline - no fix was applied");
+            return;
+        }
+
+        setCreatingPR(true);
+        setPrError(null);
+
+        try {
+            // Get the authorization URL from backend
+            const response = await fetch(
+                `${API_URL}/api/github/authorize?jobId=${jobId}&attemptNumber=${successfulAttempt.attemptNumber}`
+            );
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || "Failed to start authorization");
+            }
+
+            const data = await response.json();
+
+            // Open GitHub OAuth in a new tab
+            // The callback will handle PR creation and redirect to the PR URL in that tab
+            window.open(data.authUrl, "_blank");
+
+            // Reset loading state since the flow continues in new tab
+            setCreatingPR(false);
+
+        } catch (error) {
+            console.error("Failed to create PR:", error);
+            setPrError(error instanceof Error ? error.message : "Failed to create PR");
+            setCreatingPR(false);
         }
     };
 
@@ -885,14 +946,45 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                             </div>
 
                             {/* Action buttons */}
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 flex-wrap">
                                 <button
                                     onClick={downloadReport}
                                     className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm transition-colors"
                                 >
                                     📥 Download Report
                                 </button>
+
+                                {/* Create PR Button - only show for successful completions with a GitHub repo */}
+                                {githubEnabled && job.status === "COMPLETED" && job.repoUrl?.includes("github.com") && (
+                                    <button
+                                        onClick={createPullRequest}
+                                        disabled={creatingPR}
+                                        className={`px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 ${
+                                            creatingPR
+                                                ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                                                : "bg-green-600 hover:bg-green-500 text-white"
+                                        }`}
+                                    >
+                                        {creatingPR ? (
+                                            <>
+                                                <span className="spinner-small"></span>
+                                                Creating PR...
+                                            </>
+                                        ) : (
+                                            <>
+                                                🚀 Create Pull Request
+                                            </>
+                                        )}
+                                    </button>
+                                )}
                             </div>
+
+                            {/* PR Error message */}
+                            {prError && (
+                                <div className="mt-2 p-2 bg-red-500/10 border border-red-500/30 rounded text-sm text-red-400">
+                                    ⚠️ {prError}
+                                </div>
+                            )}
                         </div>
 
                         {/* Test comparison or error explanation */}
