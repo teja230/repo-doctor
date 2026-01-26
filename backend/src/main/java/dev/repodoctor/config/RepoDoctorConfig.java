@@ -10,6 +10,7 @@ public class RepoDoctorConfig {
     private String artifactsPath = "./artifacts";
     private String workspacesPath = "./workspaces";
     private String runnerImage = "repodoctor-runner:latest";
+    private String runnerMode = "docker"; // "docker" or "direct"
     private int maxAttemptsLimit = 10;
     private int maxZipSizeMb = 25;
     private int maxFileCount = 250;
@@ -124,6 +125,14 @@ public class RepoDoctorConfig {
 
     public void setContainerCpus(double containerCpus) {
         this.containerCpus = containerCpus;
+    }
+
+    public String getRunnerMode() {
+        return runnerMode;
+    }
+
+    public void setRunnerMode(String runnerMode) {
+        this.runnerMode = runnerMode;
     }
 
     public GeminiConfig getGemini() {

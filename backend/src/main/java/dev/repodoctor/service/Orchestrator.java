@@ -23,7 +23,7 @@ public class Orchestrator {
 
     private final JobRepository jobRepository;
     private final AttemptRepository attemptRepository;
-    private final DockerRunner dockerRunner;
+    private final ApplicationRunner applicationRunner;
     private final PatchEngine patchEngine;
     private final ArtifactService artifactService;
     private final EventService eventService;
@@ -32,12 +32,12 @@ public class Orchestrator {
     private final RepoDoctorConfig config;
 
     public Orchestrator(JobRepository jobRepository, AttemptRepository attemptRepository,
-            DockerRunner dockerRunner, PatchEngine patchEngine,
+            ApplicationRunner applicationRunner, PatchEngine patchEngine,
             ArtifactService artifactService, EventService eventService,
             LLMClient llmClient, BaselineAnalyzer baselineAnalyzer, RepoDoctorConfig config) {
         this.jobRepository = jobRepository;
         this.attemptRepository = attemptRepository;
-        this.dockerRunner = dockerRunner;
+        this.applicationRunner = applicationRunner;
         this.patchEngine = patchEngine;
         this.artifactService = artifactService;
         this.eventService = eventService;
@@ -78,7 +78,7 @@ public class Orchestrator {
             eventService.emitJobStarted(jobId, job.getRepoName());
 
             // Detect build tool
-            BuildTool buildTool = dockerRunner.detectBuildTool(workspacePath);
+            BuildTool buildTool = applicationRunner.detectBuildTool(workspacePath);
             job.setBuildTool(buildTool);
             job.setStatus(JobStatus.RUNNING);
             jobRepository.save(job);
@@ -263,7 +263,7 @@ public class Orchestrator {
             attempt.setStatus(AttemptStatus.RUNNING);
             attemptRepository.save(attempt);
 
-            DockerRunner.ExecutionResult result = dockerRunner.runTests(
+            ApplicationRunner.ExecutionResult result = applicationRunner.runTests(
                     workspacePath, job.getBuildTool(), job.isAllowNetwork());
 
             log.info("Job {} Attempt {}: Test run finished. Exit code: {}, Success: {}",

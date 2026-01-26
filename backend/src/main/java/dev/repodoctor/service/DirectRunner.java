@@ -12,19 +12,19 @@ import java.util.concurrent.*;
 import java.util.regex.Pattern;
 
 /**
- * Service for running builds in Docker containers with sandbox restrictions.
- * Supports Maven, Gradle, and Node.js projects.
+ * Direct process execution without Docker isolation.
+ * Best for: Render, Railway, and other managed platforms.
  * 
- * Used when sandbox isolation is required (local dev, self-hosted).
+ * Trade-off: No sandboxing, but simpler deployment.
  */
 @Service
-public class DockerRunner implements ApplicationRunner {
+public class DirectRunner implements ApplicationRunner {
 
-    private static final Logger log = LoggerFactory.getLogger(DockerRunner.class);
+    private static final Logger log = LoggerFactory.getLogger(DirectRunner.class);
 
     private final RepoDoctorConfig config;
 
-    public DockerRunner(RepoDoctorConfig config) {
+    public DirectRunner(RepoDoctorConfig config) {
         this.config = config;
     }
 
@@ -47,9 +47,11 @@ public class DockerRunner implements ApplicationRunner {
     public ExecutionResult runTests(Path workspacePath, BuildTool buildTool, boolean allowNetwork) {
         String command = buildTool.getTestCommand();
 
-        // Build Docker command with sandbox restrictions
+        log.info("Running tests directly: {} in {}", command, workspacePath);
+
         ProcessBuilder pb = new ProcessBuilder();
-        pb.command(buildDockerCommand(workspacePath, command, allowNetwork));
+        pb.directory(workspacePath.toFile());
+        pb.command(parseCommand(command));
         pb.redirectErrorStream(true);
 
         StringBuilder logs = new StringBuilder();
@@ -81,17 +83,16 @@ public class DockerRunner implements ApplicationRunner {
             } catch (TimeoutException e) {
                 process.destroyForcibly();
                 outputFuture.cancel(true);
-                logs.append("\n[TIMEOUT] Container execution exceeded ")
+                logs.append("\n[TIMEOUT] Test execution exceeded ")
                         .append(config.getContainerTimeoutSeconds()).append(" seconds\n");
                 exitCode = -1;
             }
 
         } catch (Exception e) {
-            log.error("Docker execution failed", e);
-            logs.append("\n[ERROR] Docker execution failed: ").append(e.getMessage()).append("\n");
+            log.error("Direct execution failed", e);
+            logs.append("\n[ERROR] Test execution failed: ").append(e.getMessage()).append("\n");
             exitCode = -1;
         } finally {
-            // Properly shutdown executor and wait for termination
             if (executor != null) {
                 executor.shutdown();
                 try {
@@ -111,24 +112,12 @@ public class DockerRunner implements ApplicationRunner {
         return new ExecutionResult(exitCode, logs.toString(), duration, testResults);
     }
 
-    private String[] buildDockerCommand(Path workspacePath, String command, boolean allowNetwork) {
-        // Use absolute path for the workspace
-        String absPath = workspacePath.toAbsolutePath().toString();
-
-        return new String[] {
-                "docker", "run",
-                "--rm",
-                "--user", "1000:1000", // Non-root
-                "-e", "MAVEN_CONFIG=/workspace/.m2", // Add MAVEN_CONFIG environment variable
-                "--cpus", String.valueOf(config.getContainerCpus()),
-                "--memory", config.getContainerMemoryMb() + "m",
-                "--memory-swap", config.getContainerMemoryMb() + "m",
-                allowNetwork ? "--network=bridge" : "--network=none",
-                "-v", absPath + ":/workspace:rw",
-                "-w", "/workspace",
-                config.getRunnerImage(),
-                command
-        };
+    /**
+     * Parse command string into array for ProcessBuilder.
+     */
+    private String[] parseCommand(String command) {
+        // Handle commands like "mvn test" or "./gradlew test"
+        return command.split("\\s+");
     }
 
     private TestResults parseTestResults(String logs, BuildTool buildTool) {
@@ -138,7 +127,6 @@ public class DockerRunner implements ApplicationRunner {
 
         switch (buildTool) {
             case MAVEN -> {
-                // Parse Maven Surefire output: Tests run: X, Failures: Y, Errors: Z
                 var pattern = Pattern.compile("Tests run: (\\d+), Failures: (\\d+), Errors: (\\d+)");
                 var matcher = pattern.matcher(logs);
                 while (matcher.find()) {
@@ -148,7 +136,6 @@ public class DockerRunner implements ApplicationRunner {
                 testsPassed = testsRun - testsFailed;
             }
             case GRADLE -> {
-                // Parse Gradle output
                 var pattern = Pattern.compile("(\\d+) tests? completed, (\\d+) failed");
                 var matcher = pattern.matcher(logs);
                 if (matcher.find()) {
@@ -158,7 +145,6 @@ public class DockerRunner implements ApplicationRunner {
                 }
             }
             case NODE -> {
-                // Parse npm test output (Jest-style)
                 var passPattern = Pattern.compile("Tests:\\s+(\\d+) passed");
                 var failPattern = Pattern.compile("Tests:\\s+(\\d+) failed");
                 var passMatcher = passPattern.matcher(logs);
@@ -172,7 +158,7 @@ public class DockerRunner implements ApplicationRunner {
                 testsRun = testsPassed + testsFailed;
             }
             default -> {
-                // Unknown build tool - just check exit code
+                // Unknown build tool
             }
         }
 
