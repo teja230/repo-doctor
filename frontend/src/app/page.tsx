@@ -4,8 +4,6 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-
 export default function Home() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -127,7 +125,7 @@ export default function Home() {
 
   // Fetch recent jobs on mount
   useEffect(() => {
-    fetch(`${API_URL}/api/jobs`)
+    fetch('/api/jobs')
       .then(res => res.json())
       .then(data => setRecentJobs(data))
       .catch(err => console.error("Failed to fetch recent jobs:", err));
@@ -140,7 +138,7 @@ export default function Home() {
     if (deletingJobId === jobId) {
       // Confirmed - delete
       try {
-        const res = await fetch(`${API_URL}/api/jobs/${jobId}`, { method: "DELETE" });
+        const res = await fetch(`/api/jobs/${jobId}`, { method: "DELETE" });
         if (res.ok) {
           setRecentJobs(prev => prev.filter(j => j.id !== jobId));
           setToast({ message: "Job deleted successfully", type: "success" });
@@ -198,7 +196,7 @@ export default function Home() {
       formData.append("maxAttempts", maxAttempts.toString());
       formData.append("allowNetwork", allowNetwork.toString());
 
-      const response = await fetch(`${API_URL}/api/jobs`, {
+      const response = await fetch('/api/jobs', {
         method: "POST",
         body: formData,
       });

@@ -959,11 +959,10 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                     <button
                                         onClick={createPullRequest}
                                         disabled={creatingPR}
-                                        className={`px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 ${
-                                            creatingPR
-                                                ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-                                                : "bg-green-600 hover:bg-green-500 text-white"
-                                        }`}
+                                        className={`px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 ${creatingPR
+                                            ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                                            : "bg-green-600 hover:bg-green-500 text-white"
+                                            }`}
                                     >
                                         {creatingPR ? (
                                             <>
