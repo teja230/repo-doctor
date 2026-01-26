@@ -473,7 +473,7 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                         >
                             📥
                         </button>
-                        {!job?.llmConfigured && (
+                        {job && !job.llmConfigured && attempts.some(a => a.attemptNumber === 0 && !a.explanation) && (
                             <div className="px-4 py-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-sm text-yellow-200">
                                 ⚠️ Gemini API not configured
                             </div>

@@ -34,6 +34,10 @@ public class PatchEngine {
         runGitCommand(workspacePath, "config", "user.email", "repodoctor@example.com");
         runGitCommand(workspacePath, "config", "user.name", "RepoDoctor");
 
+        // Configure line ending handling for consistent behavior across platforms
+        runGitCommand(workspacePath, "config", "core.autocrlf", "false");
+        runGitCommand(workspacePath, "config", "core.eol", "lf");
+
         // Add all files and create baseline commit
         runGitCommand(workspacePath, "add", "-A");
         runGitCommand(workspacePath, "commit", "-m", "baseline", "--allow-empty");
@@ -51,25 +55,60 @@ public class PatchEngine {
             return new PatchResult(false, "Patch contains invalid paths (outside workspace)");
         }
 
+        // Normalize line endings to LF (Unix style) - critical for git apply on Linux
+        String normalizedDiff = unifiedDiff.replace("\r\n", "\n").replace("\r", "\n");
+
         // Write diff to temp file
         Path patchFile;
         try {
             patchFile = Files.createTempFile("patch-", ".diff");
-            Files.writeString(patchFile, unifiedDiff);
+            Files.writeString(patchFile, normalizedDiff);
         } catch (IOException e) {
             return new PatchResult(false, "Failed to write patch file: " + e.getMessage());
         }
 
         try {
-            // Try to apply the patch
-            String result = runGitCommandWithOutput(workspacePath, "apply", "--ignore-space-change",
+            // Try to apply the patch with different strategies
+            String result;
+            int strategy = 0; // Track which strategy worked
+
+            // Strategy 1: ignore space and whitespace changes
+            result = runGitCommandWithOutput(workspacePath, "apply", "--ignore-space-change",
                     "--ignore-whitespace", "--check", patchFile.toString());
-            if (result.contains("error:") || result.contains("fatal:")) {
+            boolean applySuccess = !result.contains("error:") && !result.contains("fatal:");
+
+            if (!applySuccess) {
+                // Strategy 2: just ignore whitespace
+                log.warn("First git apply check failed, trying with --ignore-whitespace only");
+                result = runGitCommandWithOutput(workspacePath, "apply", "--ignore-whitespace", "--check",
+                        patchFile.toString());
+                applySuccess = !result.contains("error:") && !result.contains("fatal:");
+                strategy = 1;
+            }
+
+            if (!applySuccess) {
+                // Strategy 3: use 3-way merge
+                log.warn("Second git apply check failed, trying with --3way");
+                result = runGitCommandWithOutput(workspacePath, "apply", "--3way", "--check",
+                        patchFile.toString());
+                applySuccess = !result.contains("error:") && !result.contains("fatal:");
+                strategy = 2;
+            }
+
+            if (!applySuccess) {
+                log.error("All git apply strategies failed. Final error: {}", result);
+                log.error("Patch content (first 500 chars): {}",
+                    normalizedDiff.substring(0, Math.min(500, normalizedDiff.length())));
                 return new PatchResult(false, "Patch would not apply cleanly: " + result);
             }
 
-            // Actually apply the patch
-            runGitCommand(workspacePath, "apply", "--ignore-space-change", "--ignore-whitespace", patchFile.toString());
+            // Actually apply the patch using the strategy that succeeded
+            switch (strategy) {
+                case 0 -> runGitCommand(workspacePath, "apply", "--ignore-space-change", "--ignore-whitespace",
+                        patchFile.toString());
+                case 1 -> runGitCommand(workspacePath, "apply", "--ignore-whitespace", patchFile.toString());
+                case 2 -> runGitCommand(workspacePath, "apply", "--3way", patchFile.toString());
+            }
 
             // Commit the changes
             runGitCommand(workspacePath, "add", "-A");
