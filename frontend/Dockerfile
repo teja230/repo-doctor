@@ -3,7 +3,6 @@ WORKDIR /app
 COPY frontend/package*.json ./
 RUN npm ci
 COPY frontend/ .
-ENV NEXT_PUBLIC_API_URL=http://localhost:8080
 RUN npm run build
 
 FROM node:20-alpine
