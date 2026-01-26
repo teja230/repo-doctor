@@ -425,6 +425,9 @@ public class GeminiClient implements LLMClient {
         if (diff.length() > 0) {
             log.info("Parsing patch proposal. unified_diff length: {}, first 300 chars: {}",
                     diff.length(), diff.substring(0, Math.min(300, diff.length())));
+            // Log the raw JSON field to see if escaping is correct
+            log.debug("Raw JSON unified_diff value: {}",
+                    node.path("unified_diff").toString().substring(0, Math.min(500, node.path("unified_diff").toString().length())));
         } else {
             log.error("Parsing patch proposal: unified_diff is EMPTY. Full JSON: {}", json);
             throw new RuntimeException("Invalid patch proposal: unified_diff is empty");
@@ -468,6 +471,9 @@ public class GeminiClient implements LLMClient {
             7. Include 3 lines of context before and after each change
             8. The replacement line (starting with '+') must contain the COMPLETE new code
             9. Do NOT leave the '+' line empty or incomplete
+            10. The hunk line count in @@ headers MUST match the actual number of lines in the hunk
+            11. Each hunk must end with a complete line (including trailing newline)
+            12. Preserve all whitespace and indentation EXACTLY as in the original file
 
             COMMON MISTAKES TO AVOID:
             - Wrong line numbers (forgetting to count package/import/comment lines)

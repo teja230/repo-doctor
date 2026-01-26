@@ -58,6 +58,9 @@ public class PatchEngine {
         // Normalize line endings to LF (Unix style) - critical for git apply on Linux
         String normalizedDiff = unifiedDiff.replace("\r\n", "\n").replace("\r", "\n");
 
+        // Fix common patch format issues
+        normalizedDiff = fixPatchFormat(normalizedDiff);
+
         // Write diff to temp file
         Path patchFile;
         try {
@@ -97,8 +100,16 @@ public class PatchEngine {
 
             if (!applySuccess) {
                 log.error("All git apply strategies failed. Final error: {}", result);
-                log.error("Patch content (first 500 chars): {}",
-                    normalizedDiff.substring(0, Math.min(500, normalizedDiff.length())));
+                log.error("Full patch content ({} chars):\n{}", normalizedDiff.length(), normalizedDiff);
+
+                // Log each line with its length and hex representation for debugging
+                String[] lines = normalizedDiff.split("\n", -1);
+                for (int i = 0; i < Math.min(20, lines.length); i++) {
+                    log.error("Patch line {}: [{}] len={}", i + 1,
+                        lines[i].replace("\t", "\\t").replace("\r", "\\r"),
+                        lines[i].length());
+                }
+
                 return new PatchResult(false, "Patch would not apply cleanly: " + result);
             }
 
@@ -171,6 +182,40 @@ public class PatchEngine {
             log.error("Failed to get repo tree", e);
             return "";
         }
+    }
+
+    /**
+     * Fix common patch format issues that cause git apply to fail.
+     */
+    private String fixPatchFormat(String patch) {
+        StringBuilder fixed = new StringBuilder();
+        String[] lines = patch.split("\n", -1);
+
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+
+            // Ensure patch ends with a newline
+            if (i == lines.length - 1 && !line.isEmpty()) {
+                fixed.append(line).append("\n");
+            } else {
+                fixed.append(line);
+                if (i < lines.length - 1) {
+                    fixed.append("\n");
+                }
+            }
+        }
+
+        String result = fixed.toString();
+
+        // Ensure the patch ends with exactly one newline
+        while (result.endsWith("\n\n")) {
+            result = result.substring(0, result.length() - 1);
+        }
+        if (!result.endsWith("\n")) {
+            result += "\n";
+        }
+
+        return result;
     }
 
     /**
