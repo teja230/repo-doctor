@@ -950,10 +950,17 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                             <div>
                                 <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
                                     {job.status === "COMPLETED" ? (
-                                        <>
-                                            <span className="text-2xl">✅</span>
-                                            <span className="text-green-400">Success</span>
-                                        </>
+                                        (baselineAttempt?.testsFailed === 0) ? (
+                                            <>
+                                                <span className="text-2xl">✨</span>
+                                                <span className="text-purple-400">Improvements Proposed</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span className="text-2xl">✅</span>
+                                                <span className="text-green-400">Fixed</span>
+                                            </>
+                                        )
                                     ) : (
                                         <>
                                             <span className="text-2xl">❌</span>
@@ -1035,11 +1042,15 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                         of {finalAttempt?.testsRun || 0} tests
                                     </div>
                                     {baselineAttempt && finalAttempt &&
-                                        (baselineAttempt.testsFailed || 0) > (finalAttempt.testsFailed || 0) && (
-                                            <div className="mt-2 text-sm text-green-400">
-                                                ✨ Fixed {(baselineAttempt.testsFailed || 0) - (finalAttempt.testsFailed || 0)} test(s)!
-                                            </div>
-                                        )}
+                                        (baselineAttempt.testsFailed || 0) > (finalAttempt.testsFailed || 0) ? (
+                                        <div className="mt-2 text-sm text-green-400">
+                                            ✨ Fixed {(baselineAttempt.testsFailed || 0) - (finalAttempt.testsFailed || 0)} test(s)!
+                                        </div>
+                                    ) : (baselineAttempt?.testsFailed === 0) && (
+                                        <div className="mt-2 text-sm text-purple-400">
+                                            ✨ Code quality improvements analyzed
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         ) : (
