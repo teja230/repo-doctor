@@ -1,5 +1,7 @@
 package dev.repodoctor.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -16,6 +18,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @Service
 public class EventService {
 
+    private static final Logger log = LoggerFactory.getLogger(EventService.class);
     private final Map<String, List<SseEmitter>> jobEmitters = new ConcurrentHashMap<>();
 
     public SseEmitter createEmitter(String jobId) {
@@ -49,18 +52,45 @@ public class EventService {
 
     @org.springframework.scheduling.annotation.Scheduled(fixedRate = 5000)
     public void sendHeartbeat() {
-        jobEmitters.forEach((jobId, emitters) -> {
-            List<SseEmitter> deadEmitters = new ArrayList<>();
-            for (SseEmitter emitter : emitters) {
-                try {
-                    emitter.send(SseEmitter.event().name("ping").data("pong"));
-                } catch (Exception e) {
-                    // Catch all exceptions including IllegalStateException from recycled responses
-                    deadEmitters.add(emitter);
+        try {
+            jobEmitters.forEach((jobId, emitters) -> {
+                if (emitters.isEmpty()) {
+                    return;
                 }
-            }
-            emitters.removeAll(deadEmitters);
-        });
+
+                List<SseEmitter> deadEmitters = new ArrayList<>();
+                for (SseEmitter emitter : emitters) {
+                    try {
+                        emitter.send(SseEmitter.event().name("ping").data("pong"));
+                    } catch (IllegalStateException e) {
+                        // Response recycled - client disconnected or server restarted
+                        deadEmitters.add(emitter);
+                    } catch (IOException e) {
+                        // IO error - client disconnected
+                        deadEmitters.add(emitter);
+                    } catch (Exception e) {
+                        // Unexpected error - log it
+                        log.warn("Unexpected error sending SSE heartbeat: {}", e.getMessage());
+                        deadEmitters.add(emitter);
+                    }
+                }
+
+                if (!deadEmitters.isEmpty()) {
+                    emitters.removeAll(deadEmitters);
+                    if (log.isDebugEnabled()) {
+                        log.debug("Removed {} dead SSE connections for job {}", deadEmitters.size(), jobId);
+                    }
+                }
+
+                // Clean up empty job entry
+                if (emitters.isEmpty()) {
+                    jobEmitters.remove(jobId);
+                }
+            });
+        } catch (Exception e) {
+            // Catch any exception from the forEach itself to prevent scheduler errors
+            log.debug("Error during SSE heartbeat: {}", e.getMessage());
+        }
     }
 
     public void emit(String jobId, String eventType, Object data) {
@@ -81,8 +111,12 @@ public class EventService {
                 emitter.send(SseEmitter.event()
                         .name(eventType)
                         .data(payload));
+            } catch (IllegalStateException | IOException e) {
+                // Client disconnected or response recycled - silently ignore
+                deadEmitters.add(emitter);
             } catch (Exception e) {
-                // Catch all exceptions including IllegalStateException from recycled responses
+                // Unexpected error - log once without stack trace
+                log.warn("Error sending SSE event {}: {}", eventType, e.getMessage());
                 deadEmitters.add(emitter);
             }
         }
