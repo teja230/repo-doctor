@@ -23,12 +23,22 @@ public class PatchEngine {
     /**
      * Initialize git repository with baseline commit.
      * Call this after extracting/cloning the repo.
+     *
+     * IMPORTANT: For cloned repos, we remove the existing .git directory to ensure
+     * a clean state. This prevents issues with shallow clones and patch application.
      */
     public void initializeRepository(Path workspacePath) throws IOException {
-        // Check if already a git repo
-        if (!Files.exists(workspacePath.resolve(".git"))) {
-            runGitCommand(workspacePath, "init");
+        Path gitDir = workspacePath.resolve(".git");
+
+        // Remove existing .git directory if present (from cloned repos)
+        // This ensures consistent behavior between ZIP uploads and URL clones
+        if (Files.exists(gitDir)) {
+            log.info("Removing existing .git directory from cloned repo at {}", workspacePath);
+            deleteGitDirectory(gitDir);
         }
+
+        // Initialize fresh git repo
+        runGitCommand(workspacePath, "init");
 
         // Configure git for commits
         runGitCommand(workspacePath, "config", "user.email", "repodoctor@example.com");
@@ -43,6 +53,22 @@ public class PatchEngine {
         runGitCommand(workspacePath, "commit", "-m", "baseline", "--allow-empty");
 
         log.info("Initialized git repository at {}", workspacePath);
+    }
+
+    /**
+     * Recursively delete .git directory.
+     */
+    private void deleteGitDirectory(Path gitDir) throws IOException {
+        try (Stream<Path> walk = Files.walk(gitDir)) {
+            walk.sorted(java.util.Comparator.reverseOrder())
+                .forEach(path -> {
+                    try {
+                        Files.delete(path);
+                    } catch (IOException e) {
+                        log.warn("Failed to delete {}: {}", path, e.getMessage());
+                    }
+                });
+        }
     }
 
     /**
