@@ -26,8 +26,8 @@ public class EventService {
         // Send immediate ping
         try {
             emitter.send(SseEmitter.event().name("ping").data("connected"));
-        } catch (IOException e) {
-            // ignore
+        } catch (Exception e) {
+            // Ignore - client may have disconnected immediately
         }
 
         emitter.onCompletion(() -> removeEmitter(jobId, emitter));
@@ -54,7 +54,8 @@ public class EventService {
             for (SseEmitter emitter : emitters) {
                 try {
                     emitter.send(SseEmitter.event().name("ping").data("pong"));
-                } catch (IOException e) {
+                } catch (Exception e) {
+                    // Catch all exceptions including IllegalStateException from recycled responses
                     deadEmitters.add(emitter);
                 }
             }
@@ -80,7 +81,8 @@ public class EventService {
                 emitter.send(SseEmitter.event()
                         .name(eventType)
                         .data(payload));
-            } catch (IOException e) {
+            } catch (Exception e) {
+                // Catch all exceptions including IllegalStateException from recycled responses
                 deadEmitters.add(emitter);
             }
         }
