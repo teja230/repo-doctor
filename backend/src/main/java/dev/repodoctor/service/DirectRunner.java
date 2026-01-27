@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.*;
 import java.nio.file.*;
+import java.util.stream.Stream;
 import java.util.concurrent.*;
 import java.util.regex.Pattern;
 
@@ -40,7 +41,56 @@ public class DirectRunner implements ApplicationRunner {
         if (Files.exists(workspacePath.resolve("package.json"))) {
             return BuildTool.NODE;
         }
+        if (isPythonProject(workspacePath)) {
+            return BuildTool.PYTHON;
+        }
         return BuildTool.UNKNOWN;
+    }
+
+    /**
+     * Check if the workspace is a Python project.
+     * Detects: pyproject.toml, pytest.ini, setup.py, setup.cfg, tox.ini, or
+     * test_*.py files.
+     */
+    private boolean isPythonProject(Path workspacePath) {
+        // Check for common Python project markers
+        if (Files.exists(workspacePath.resolve("pyproject.toml")) ||
+                Files.exists(workspacePath.resolve("pytest.ini")) ||
+                Files.exists(workspacePath.resolve("setup.py")) ||
+                Files.exists(workspacePath.resolve("setup.cfg")) ||
+                Files.exists(workspacePath.resolve("tox.ini")) ||
+                Files.exists(workspacePath.resolve("requirements.txt"))) {
+            return true;
+        }
+
+        // Check for test_*.py files in common locations
+        try {
+            Path testsDir = workspacePath.resolve("tests");
+            Path testDir = workspacePath.resolve("test");
+
+            if (Files.isDirectory(testsDir) && hasTestFiles(testsDir)) {
+                return true;
+            }
+            if (Files.isDirectory(testDir) && hasTestFiles(testDir)) {
+                return true;
+            }
+            // Check root directory for test files
+            return hasTestFiles(workspacePath);
+        } catch (Exception e) {
+            log.warn("Error checking for Python test files: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    private boolean hasTestFiles(Path directory) {
+        try (Stream<Path> files = Files.list(directory)) {
+            return files.anyMatch(p -> {
+                String name = p.getFileName().toString();
+                return name.startsWith("test_") && name.endsWith(".py") && Files.isRegularFile(p);
+            });
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     @Override
@@ -147,6 +197,20 @@ public class DirectRunner implements ApplicationRunner {
             case NODE -> {
                 var passPattern = Pattern.compile("Tests:\\s+(\\d+) passed");
                 var failPattern = Pattern.compile("Tests:\\s+(\\d+) failed");
+                var passMatcher = passPattern.matcher(logs);
+                var failMatcher = failPattern.matcher(logs);
+                if (passMatcher.find()) {
+                    testsPassed = Integer.parseInt(passMatcher.group(1));
+                }
+                if (failMatcher.find()) {
+                    testsFailed = Integer.parseInt(failMatcher.group(1));
+                }
+                testsRun = testsPassed + testsFailed;
+            }
+            case PYTHON -> {
+                // Parse pytest output: "5 passed, 2 failed in 0.12s" or "5 passed in 0.12s"
+                var passPattern = Pattern.compile("(\\d+) passed");
+                var failPattern = Pattern.compile("(\\d+) failed");
                 var passMatcher = passPattern.matcher(logs);
                 var failMatcher = failPattern.matcher(logs);
                 if (passMatcher.find()) {

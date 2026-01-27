@@ -37,8 +37,24 @@ public class JobService {
     /**
      * Create a new job from a ZIP file upload.
      */
-    public Job createJobFromZip(MultipartFile zipFile, int maxAttempts, boolean allowNetwork)
+    public Job createJobFromZip(MultipartFile zipFile, int maxAttempts, boolean allowNetwork, String sessionId)
             throws IOException {
+
+        // Validate file extension
+        String filename = zipFile.getOriginalFilename();
+        if (filename == null || !filename.toLowerCase().endsWith(".zip")) {
+            throw new IllegalArgumentException("Only .zip files are allowed");
+        }
+
+        // Validate content type
+        String contentType = zipFile.getContentType();
+        if (contentType != null && !contentType.equals("application/zip") &&
+                !contentType.equals("application/x-zip-compressed") &&
+                !contentType.equals("application/octet-stream")) { // Some browsers send zip as octet-stream
+            log.warn("Suspicious content type: {}", contentType);
+            // We'll proceed if extension is .zip, but log warning.
+            // Strict content-type checking can be flaky across browsers/OS.
+        }
 
         // Validate file size
         if (zipFile.getSize() > config.getMaxZipSizeMb() * 1024 * 1024) {
@@ -51,6 +67,7 @@ public class JobService {
         job.setMaxAttempts(Math.min(maxAttempts, config.getMaxAttemptsLimit()));
         job.setAllowNetwork(allowNetwork);
         job.setRepoName(getRepoNameFromFilename(zipFile.getOriginalFilename()));
+        job.setSessionId(sessionId);
 
         // Create workspace directory
         Path workspacesRoot = Path.of(config.getWorkspacesPath());
@@ -70,6 +87,13 @@ public class JobService {
                             " files, but found " + fileCount);
         }
 
+        // Validate that the project contains source code
+        if (!hasCodeFiles(workspacePath)) {
+            deleteDirectory(workspacePath);
+            throw new IllegalArgumentException(
+                    "No valid source code files found. Please upload a Java (Maven/Gradle), Node.js, or Python project.");
+        }
+
         job.setStatus(JobStatus.PENDING);
         jobRepository.save(job);
 
@@ -84,7 +108,7 @@ public class JobService {
     /**
      * Create a new job from a GitHub URL.
      */
-    public Job createJobFromUrl(String repoUrl, int maxAttempts, boolean allowNetwork)
+    public Job createJobFromUrl(String repoUrl, int maxAttempts, boolean allowNetwork, String sessionId)
             throws IOException {
 
         // Create job
@@ -93,6 +117,7 @@ public class JobService {
         job.setMaxAttempts(Math.min(maxAttempts, config.getMaxAttemptsLimit()));
         job.setAllowNetwork(allowNetwork);
         job.setRepoName(getRepoNameFromUrl(repoUrl));
+        job.setSessionId(sessionId);
 
         // Create workspace directory
         Path workspacesRoot = Path.of(config.getWorkspacesPath());
@@ -134,8 +159,11 @@ public class JobService {
         return jobRepository.findById(jobId).orElse(null);
     }
 
-    public List<Job> getRecentJobs() {
-        return jobRepository.findTop10ByOrderByCreatedAtDesc();
+    public List<Job> getRecentJobs(String sessionId, boolean all) {
+        if (all || sessionId == null || sessionId.isBlank()) {
+            return jobRepository.findTop10ByOrderByCreatedAtDesc();
+        }
+        return jobRepository.findTop10BySessionIdOrderByCreatedAtDesc(sessionId);
     }
 
     public boolean deleteJob(String jobId) {
@@ -244,8 +272,7 @@ public class JobService {
         Set<String> allowedHosts = Set.of(
                 "github.com", "www.github.com",
                 "gitlab.com", "www.gitlab.com",
-                "bitbucket.org", "www.bitbucket.org"
-        );
+                "bitbucket.org", "www.bitbucket.org");
 
         try {
             URI uri = new URI(url);
@@ -290,6 +317,25 @@ public class JobService {
             return cleaned.substring(lastSlash + 1);
         }
         return "unknown";
+    }
+
+    private boolean hasCodeFiles(Path workspacePath) {
+        try (var walk = Files.walk(workspacePath)) {
+            return walk.anyMatch(p -> {
+                String name = p.getFileName().toString().toLowerCase();
+                return name.endsWith(".java") ||
+                        name.endsWith(".kt") ||
+                        name.endsWith(".js") ||
+                        name.endsWith(".ts") ||
+                        name.endsWith(".py") ||
+                        name.equals("pom.xml") ||
+                        name.equals("build.gradle") ||
+                        name.equals("package.json");
+            });
+        } catch (IOException e) {
+            log.warn("Failed to walk workspace for code validation", e);
+            return false;
+        }
     }
 
     private void deleteDirectory(Path path) {

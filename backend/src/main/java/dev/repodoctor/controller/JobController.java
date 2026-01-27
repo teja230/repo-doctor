@@ -40,8 +40,10 @@ public class JobController {
      */
     @GetMapping
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
-    public ResponseEntity<?> listJobs() {
-        List<Job> jobs = jobService.getRecentJobs();
+    public ResponseEntity<?> listJobs(
+            @RequestHeader(value = "X-Session-Id", required = false) String sessionId,
+            @RequestParam(defaultValue = "false") boolean all) {
+        List<Job> jobs = jobService.getRecentJobs(sessionId, all);
 
         List<Map<String, Object>> result = new ArrayList<>();
         for (Job job : jobs) {
@@ -77,15 +79,16 @@ public class JobController {
             @RequestParam(required = false) String repoUrl,
             @RequestParam(required = false) MultipartFile repoZip,
             @RequestParam(defaultValue = "1") int maxAttempts,
-            @RequestParam(defaultValue = "false") boolean allowNetwork) {
+            @RequestParam(defaultValue = "false") boolean allowNetwork,
+            @RequestHeader(value = "X-Session-Id", required = false) String sessionId) {
 
         try {
             Job job;
 
             if (repoZip != null && !repoZip.isEmpty()) {
-                job = jobService.createJobFromZip(repoZip, maxAttempts, allowNetwork);
+                job = jobService.createJobFromZip(repoZip, maxAttempts, allowNetwork, sessionId);
             } else if (repoUrl != null && !repoUrl.isBlank()) {
-                job = jobService.createJobFromUrl(repoUrl, maxAttempts, allowNetwork);
+                job = jobService.createJobFromUrl(repoUrl, maxAttempts, allowNetwork, sessionId);
             } else {
                 return ResponseEntity.badRequest()
                         .body(Map.of("error", "Either repoUrl or repoZip must be provided"));
@@ -129,7 +132,9 @@ public class JobController {
         response.put("completedAt", job.getCompletedAt());
         response.put("errorMessage", job.getErrorMessage());
         response.put("attemptCount", job.getAttempts().size());
+        response.put("attemptCount", job.getAttempts().size());
         response.put("llmConfigured", llmClient.isConfigured());
+        response.put("sessionId", job.getSessionId());
 
         // Add summary of final state
         if (!job.getAttempts().isEmpty()) {

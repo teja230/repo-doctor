@@ -84,7 +84,11 @@ public class Orchestrator {
             jobRepository.save(job);
 
             if (buildTool == BuildTool.UNKNOWN) {
-                failJob(job, "Unknown build tool - no pom.xml, build.gradle, or package.json found");
+                failJob(job, "Unsupported project type. RepoDoctor currently supports:\n" +
+                        "• Java (Maven: pom.xml, or Gradle: build.gradle/build.gradle.kts)\n" +
+                        "• Node.js (package.json)\n" +
+                        "• Python (pyproject.toml, pytest.ini, setup.py, or test_*.py files)\n\n" +
+                        "Please ensure your project has one of these configuration files in the root directory.");
                 return;
             }
 
@@ -404,6 +408,8 @@ public class Orchestrator {
             case MAVEN -> List.of("pom.xml");
             case GRADLE -> List.of("build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts");
             case NODE -> List.of("package.json", "package-lock.json", "yarn.lock", "pnpm-lock.yaml");
+            case PYTHON ->
+                List.of("pyproject.toml", "setup.py", "setup.cfg", "pytest.ini", "requirements.txt", "tox.ini");
             default -> List.of();
         };
 
@@ -440,11 +446,51 @@ public class Orchestrator {
                             appendFileWithLineNumbers(p, relativePath, context, maxCharsPerFile);
                         });
             }
+
+            // Look for Python files in common locations
+            if (buildTool == BuildTool.PYTHON) {
+                scanPythonFiles(workspacePath, context, maxCharsPerFile);
+            }
         } catch (IOException e) {
             log.warn("Failed to scan source directories", e);
         }
 
         return context.toString();
+    }
+
+    private void scanPythonFiles(Path workspacePath, StringBuilder context, int maxCharsPerFile) throws IOException {
+        // Scan for .py files in root, src, test, and tests directories
+        List<Path> searchPaths = new ArrayList<>();
+        searchPaths.add(workspacePath);
+
+        Path src = workspacePath.resolve("src");
+        if (Files.exists(src))
+            searchPaths.add(src);
+
+        Path test = workspacePath.resolve("test");
+        if (Files.exists(test))
+            searchPaths.add(test);
+
+        Path tests = workspacePath.resolve("tests");
+        if (Files.exists(tests))
+            searchPaths.add(tests);
+
+        for (Path searchPath : searchPaths) {
+            try (var stream = Files.walk(searchPath, 3)) {
+                stream.filter(p -> p.toString().endsWith(".py") && Files.isRegularFile(p))
+                        .limit(10) // Limit total files to avoid huge context
+                        .forEach(p -> {
+                            // Avoid duplicates if we're scanning subdirectories of already scanned paths
+                            if (context.toString().contains("File: " + workspacePath.relativize(p))) {
+                                return;
+                            }
+                            String relativePath = workspacePath.relativize(p).toString();
+                            appendFileWithLineNumbers(p, relativePath, context, maxCharsPerFile);
+                        });
+            } catch (IOException e) {
+                log.warn("Error scanning python files in {}", searchPath, e);
+            }
+        }
     }
 
     private void appendFileWithLineNumbers(Path file, String displayName, StringBuilder context, int maxCharsPerFile) {

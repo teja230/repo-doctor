@@ -32,6 +32,9 @@ public class BaselineAnalyzer {
             case NODE -> {
                 extractNodeFailures(logs, failedTests, errorMessages);
             }
+            case PYTHON -> {
+                extractPythonFailures(logs, failedTests, errorMessages);
+            }
             default -> {
                 failureType = "UNKNOWN";
             }
@@ -106,6 +109,34 @@ public class BaselineAnalyzer {
         Matcher matcher = testPattern.matcher(logs);
         while (matcher.find()) {
             failedTests.add(matcher.group(1).trim());
+        }
+
+        extractCommonErrors(logs, errorMessages);
+    }
+
+    private void extractPythonFailures(String logs, List<String> failedTests, List<String> errorMessages) {
+        // Pattern: "FAILED tests/test_example.py::test_name - AssertionError"
+        Pattern testPattern = Pattern.compile("FAILED\\s+([\\w/._]+::\\w+)");
+        Matcher matcher = testPattern.matcher(logs);
+        while (matcher.find()) {
+            failedTests.add(matcher.group(1).trim());
+        }
+
+        // Also try pattern: "test_name FAILED"
+        Pattern altPattern = Pattern.compile("(test_\\w+)\\s+FAILED");
+        Matcher altMatcher = altPattern.matcher(logs);
+        while (altMatcher.find()) {
+            String test = altMatcher.group(1).trim();
+            if (!failedTests.contains(test)) {
+                failedTests.add(test);
+            }
+        }
+
+        // Extract assertion errors from pytest output
+        Pattern assertPattern = Pattern.compile("(?:AssertionError|assert)\\s*:?\\s*([^\\n]{10,100})");
+        Matcher assertMatcher = assertPattern.matcher(logs);
+        while (assertMatcher.find() && errorMessages.size() < 5) {
+            errorMessages.add(assertMatcher.group(0).trim());
         }
 
         extractCommonErrors(logs, errorMessages);

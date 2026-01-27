@@ -24,6 +24,26 @@ export default function Home() {
   const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [urlValidation, setUrlValidation] = useState<{ valid: boolean; message: string } | null>(null);
+  const [sessionId, setSessionId] = useState<string>("");
+  const [showAllJobs, setShowAllJobs] = useState(false);
+
+  // Initialize session ID
+  useEffect(() => {
+    let sid = localStorage.getItem("repo_doctor_session_id");
+    if (!sid) {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        sid = crypto.randomUUID();
+      } else {
+        // Fallback for older browsers
+        sid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+          var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      }
+      localStorage.setItem("repo_doctor_session_id", sid!);
+    }
+    setSessionId(sid!);
+  }, []);
 
   /**
    * Validates and sanitizes GitHub repository URLs.
@@ -123,19 +143,28 @@ export default function Home() {
     return { valid: true, message: "Valid GitHub repository", cleanUrl };
   };
 
-  // Fetch recent jobs on mount
+  // Fetch recent jobs
   useEffect(() => {
-    fetch('/api/jobs', {
+    if (!sessionId) return; // Wait for session ID
+
+    // Build URL with params
+    const url = new URL('/api/jobs', window.location.origin);
+    if (showAllJobs) {
+      url.searchParams.append('all', 'true');
+    }
+
+    fetch(url.toString(), {
       cache: 'no-store',
       headers: {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache'
+        'Pragma': 'no-cache',
+        'X-Session-Id': sessionId
       }
     })
       .then(res => res.json())
       .then(data => setRecentJobs(data))
       .catch(err => console.error("Failed to fetch recent jobs:", err));
-  }, []);
+  }, [sessionId, showAllJobs]);
 
   const handleDeleteJob = async (e: React.MouseEvent, jobId: string) => {
     e.preventDefault();
@@ -205,6 +234,9 @@ export default function Home() {
       const response = await fetch('/api/jobs', {
         method: "POST",
         body: formData,
+        headers: {
+          'X-Session-Id': sessionId
+        }
       });
 
       const data = await response.json();
@@ -444,7 +476,9 @@ export default function Home() {
           {recentJobs.length > 0 && (
             <div className="mt-8 fade-in" style={{ animationDelay: "0.3s" }}>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-300">Recent Jobs</h2>
+                <div className="flex items-center gap-4">
+                  <h2 className="text-lg font-semibold text-gray-300">Recent Jobs</h2>
+                </div>
                 <div className="flex gap-2">
                   {["all", "pending", "completed", "failed"].map((filter) => (
                     <button

@@ -44,6 +44,9 @@ public class Job {
     @Column(name = "error_message", length = 2000)
     private String errorMessage;
 
+    @Column(name = "session_id")
+    private String sessionId;
+
     @OneToMany(mappedBy = "job", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("attemptNumber ASC")
     private List<Attempt> attempts = new ArrayList<>();
@@ -141,6 +144,14 @@ public class Job {
 
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
+    }
+
+    public String getSessionId() {
+        return sessionId;
+    }
+
+    public void setSessionId(String sessionId) {
+        this.sessionId = sessionId;
     }
 
     public List<Attempt> getAttempts() {
