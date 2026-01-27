@@ -321,6 +321,8 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
         if (status === "SUCCESS") return "success";
         if (status?.includes("FAIL") || status?.includes("ERROR") || status?.includes("INVALID")) return "failed";
         if (status === "RUNNING" || status === "PENDING" || status === "ANALYZING" || status === "PATCHING" || status === "RATE_LIMIT_PAUSE") return "running";
+        // Special case for improvements
+        if (attempt.testsRun === 0 && attempt.explanation && attempt.attemptNumber > 0) return "success";
         return "";
     };
 
@@ -432,6 +434,8 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
     const baselineAttempt = attempts.find(a => a.attemptNumber === 0);
     const finalAttempt = attempts.length > 0 ? attempts[attempts.length - 1] : null;
     const testsActuallyRan = (baselineAttempt?.testsRun ?? 0) > 0 || (finalAttempt?.testsRun ?? 0) > 0;
+    // Check if it's an improvement success (no tests ran, but valid explanation/patch in final attempt)
+    const isImprovementSuccess = !testsActuallyRan && finalAttempt && finalAttempt.explanation && finalAttempt.attemptNumber > 0;
 
     if (loading) {
         return (
@@ -545,8 +549,14 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                                     {attempt.riskLevel}
                                                 </span>
                                             )}
-                                            <span className={`status-badge text-xs ${getStatusClass(attempt.status)}`}>
-                                                {attempt.status}
+                                            <span className={`status-badge text-xs ${(attempt.testsRun === 0 && attempt.explanation && attempt.attemptNumber > 0)
+                                                ? "text-purple-400 bg-purple-500/20"
+                                                : getStatusClass(attempt.status)
+                                                }`}>
+                                                {(attempt.testsRun === 0 && attempt.explanation && attempt.attemptNumber > 0)
+                                                    ? "PROPOSED"
+                                                    : attempt.status
+                                                }
                                             </span>
                                         </div>
                                     </div>
@@ -555,6 +565,8 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                     <div className="flex items-center gap-3 text-sm text-gray-400 mt-2">
                                         {attempt.testsRun !== null && attempt.testsRun > 0 ? (
                                             <span>🧪 {attempt.testsPassed}✓ / {attempt.testsFailed}✗ of {attempt.testsRun}</span>
+                                        ) : attempt.explanation && attempt.attemptNumber > 0 ? (
+                                            <span className="text-purple-400">✨ Improvements Proposed</span>
                                         ) : (
                                             <span className="text-gray-500">🧪 No tests ran</span>
                                         )}
@@ -949,8 +961,8 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                         <div className="flex items-start justify-between gap-4 flex-wrap">
                             <div>
                                 <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
-                                    {job.status === "COMPLETED" ? (
-                                        (baselineAttempt?.testsFailed === 0) ? (
+                                    {job.status === "COMPLETED" || isImprovementSuccess ? (
+                                        (baselineAttempt?.testsFailed === 0 || isImprovementSuccess) ? (
                                             <>
                                                 <span className="text-2xl">✨</span>
                                                 <span className="text-purple-400">Improvements Proposed</span>
@@ -961,6 +973,11 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                                 <span className="text-green-400">Fixed</span>
                                             </>
                                         )
+                                    ) : (finalAttempt?.explanation && finalAttempt?.status !== "SUCCESS") ? (
+                                        <>
+                                            <span className="text-2xl">📝</span>
+                                            <span className="text-yellow-400">Patch Generated (Unverified)</span>
+                                        </>
                                     ) : (
                                         <>
                                             <span className="text-2xl">❌</span>
@@ -969,7 +986,11 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                     )}
                                 </h2>
                                 <p className="text-gray-300">
-                                    {job.errorMessage || (job.status === "COMPLETED" ? "All tests pass!" : "See attempt details for errors.")}
+                                    {(isImprovementSuccess)
+                                        ? "AI analysis complete. Improvements have been proposed."
+                                        : (finalAttempt?.explanation && finalAttempt?.status !== "SUCCESS")
+                                            ? "A patch was proposed but could not be verified by tests."
+                                            : (job.errorMessage || (job.status === "COMPLETED" ? "All tests pass!" : "See attempt details for errors."))}
                                 </p>
                             </div>
 
@@ -1053,6 +1074,19 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                     )}
                                 </div>
                             </div>
+                        ) : (isImprovementSuccess ? (
+                            <div className="mt-6 p-4 bg-purple-500/10 rounded-lg border border-purple-500/20">
+                                <div className="flex items-start gap-3">
+                                    <span className="text-2xl">✨</span>
+                                    <div>
+                                        <h4 className="font-medium text-purple-400">Improvements Proposed</h4>
+                                        <p className="text-sm text-gray-300 mt-1">
+                                            No tests were detected in the repository, so the proposed changes could not be verified automatically.
+                                            However, RepoDoctor has analyzed the code and generated a patch based on best practices.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
                         ) : (
                             <div className="mt-6 p-4 bg-gray-800/50 rounded-lg">
                                 <div className="flex items-start gap-3">
@@ -1071,7 +1105,7 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                     </div>
                                 </div>
                             </div>
-                        )}
+                        ))}
 
                         {/* Gemini Summary if available */}
                         {finalAttempt?.explanation && (

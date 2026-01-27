@@ -133,6 +133,23 @@ public class Orchestrator {
 
             // Max attempts reached
             boolean isSuccessfulCompletion = baseline.getStatus() == AttemptStatus.SUCCESS;
+
+            // Special handling for "Improvement Mode":
+            // If baseline had no tests (testsRun == 0), and we generated at least one patch
+            // successfully,
+            // we consider this a success (COMPLETED) because we provided improvements.
+            if (!isSuccessfulCompletion && baseline.getTestsRun() == 0) {
+                // Check if any attempt applied a patch successfully
+                boolean hasAppliedPatch = job.getAttempts().stream()
+                        .anyMatch(a -> a.getAttemptNumber() > 0 && a.getStatus() != AttemptStatus.PATCH_FAILED
+                                && a.getStatus() != AttemptStatus.LLM_ERROR
+                                && a.getStatus() != AttemptStatus.LLM_INVALID_OUTPUT);
+
+                if (hasAppliedPatch) {
+                    isSuccessfulCompletion = true;
+                }
+            }
+
             String message = isSuccessfulCompletion
                     ? "Analysis complete. Review the proposed suggestions even if some could not be applied automatically."
                     : String.format("Max attempts (%d) reached without fixing all tests", job.getMaxAttempts());
