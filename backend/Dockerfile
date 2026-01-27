@@ -5,13 +5,15 @@ COPY backend/src ./src
 RUN apt-get update && apt-get install -y maven && mvn package -DskipTests
 
 FROM eclipse-temurin:21-jdk-jammy
-# Install tools needed for DirectRunner mode:
+# Install tools needed for both DirectRunner and DockerRunner modes:
 # - maven: for Maven-based Java projects (requires JDK)
 # - gradle: for Gradle-based Java projects
 # - nodejs & npm: for Node.js/JavaScript projects
 # - python3 & pip: for Python projects with pytest
-# - git: for repository operations
+# - git: for repository operations and patch management
+# - docker.io: Docker CLI for DockerRunner mode (uses mounted socket)
 # Note: Using JDK instead of JRE because DirectRunner compiles user projects
+# Note: docker.io provides only the CLI client, not the daemon - safe with socket mounting
 RUN apt-get update && apt-get install -y --no-install-recommends \
     maven \
     gradle \
@@ -20,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
     git \
+    docker.io \
     && pip3 install --no-cache-dir pytest \
     && rm -rf /var/lib/apt/lists/*
 

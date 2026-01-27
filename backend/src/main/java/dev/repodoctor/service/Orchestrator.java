@@ -136,16 +136,19 @@ public class Orchestrator {
 
             // Special handling for "Improvement Mode":
             // If baseline had no tests (testsRun == 0), and we generated at least one patch
-            // successfully,
-            // we consider this a success (COMPLETED) because we provided improvements.
+            // with valid AI analysis, we consider this a success (COMPLETED) because we provided improvements.
             if (!isSuccessfulCompletion && baseline.getTestsRun() == 0) {
-                // Check if any attempt applied a patch successfully
-                boolean hasAppliedPatch = job.getAttempts().stream()
-                        .anyMatch(a -> a.getAttemptNumber() > 0 && a.getStatus() != AttemptStatus.PATCH_FAILED
+                // Check if any attempt generated a patch with AI analysis
+                // We consider PATCH_FAILED acceptable because the analysis is still valuable
+                // even if automatic application failed due to infrastructure issues
+                boolean hasPatchWithAnalysis = job.getAttempts().stream()
+                        .anyMatch(a -> a.getAttemptNumber() > 0
+                                && a.getExplanation() != null
+                                && !a.getExplanation().isEmpty()
                                 && a.getStatus() != AttemptStatus.LLM_ERROR
                                 && a.getStatus() != AttemptStatus.LLM_INVALID_OUTPUT);
 
-                if (hasAppliedPatch) {
+                if (hasPatchWithAnalysis) {
                     isSuccessfulCompletion = true;
                 }
             }

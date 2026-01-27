@@ -434,6 +434,11 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
     const baselineAttempt = attempts.find(a => a.attemptNumber === 0);
     const finalAttempt = attempts.length > 0 ? attempts[attempts.length - 1] : null;
     const testsActuallyRan = (baselineAttempt?.testsRun ?? 0) > 0 || (finalAttempt?.testsRun ?? 0) > 0;
+
+    // Determine improvement mode type
+    const noTestsFound = (baselineAttempt?.testsRun ?? 0) === 0;
+    const allTestsPassing = (baselineAttempt?.testsRun ?? 0) > 0 && (baselineAttempt?.testsFailed ?? 0) === 0;
+
     // Check if it's an improvement success (no tests ran, but valid explanation/patch in final attempt)
     const isImprovementSuccess = !testsActuallyRan && finalAttempt && finalAttempt.explanation && finalAttempt.attemptNumber > 0;
 
@@ -544,11 +549,6 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                             {attempt.attemptNumber === 0 ? "Baseline" : `Attempt ${attempt.attemptNumber}`}
                                         </span>
                                         <div className="flex items-center gap-2">
-                                            {attempt.riskLevel && (
-                                                <span className={`px-2 py-0.5 text-xs rounded-full ${getRiskLevelColor(attempt.riskLevel)}`}>
-                                                    {attempt.riskLevel}
-                                                </span>
-                                            )}
                                             <span className={`status-badge text-xs ${(attempt.testsRun === 0 && attempt.explanation && attempt.attemptNumber > 0)
                                                 ? "text-purple-400 bg-purple-500/20"
                                                 : getStatusClass(attempt.status)
@@ -564,9 +564,20 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                     {/* Stats row */}
                                     <div className="flex items-center gap-3 text-sm text-gray-400 mt-2">
                                         {attempt.testsRun !== null && attempt.testsRun > 0 ? (
-                                            <span>🧪 {attempt.testsPassed}✓ / {attempt.testsFailed}✗ of {attempt.testsRun}</span>
+                                            <>
+                                                <span>🧪 {attempt.testsPassed}✓ / {attempt.testsFailed}✗ of {attempt.testsRun}</span>
+                                                {attempt.testsFailed === 0 && attempt.attemptNumber > 0 && (
+                                                    <span className="text-purple-400 text-xs">+Quality improvements</span>
+                                                )}
+                                            </>
                                         ) : attempt.explanation && attempt.attemptNumber > 0 ? (
-                                            <span className="text-purple-400">✨ Improvements Proposed</span>
+                                            noTestsFound ? (
+                                                <span className="text-purple-400">🧪 Test suggestions + improvements</span>
+                                            ) : (
+                                                <span className="text-purple-400">✨ Improvements proposed</span>
+                                            )
+                                        ) : attempt.attemptNumber === 0 && attempt.testsRun === 0 ? (
+                                            <span className="text-gray-500">🔍 No tests found</span>
                                         ) : (
                                             <span className="text-gray-500">🧪 No tests ran</span>
                                         )}
@@ -783,16 +794,36 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                     <div className="space-y-4">
                                         {/* Model Info Card */}
                                         <div className="ai-card">
-                                            <h3 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2">
-                                                <span>🤖</span> Model Configuration
-                                            </h3>
-                                            <div className="flex items-center gap-3 flex-wrap">
-                                                <span className="px-3 py-1 bg-purple-500/20 text-purple-400 rounded-full text-sm">
-                                                    gemini-3-flash
+                                            <div className="flex items-start justify-between mb-4">
+                                                <div>
+                                                    <h3 className="text-sm font-semibold text-gray-400 mb-1 flex items-center gap-2">
+                                                        <span>🤖</span> AI Model
+                                                    </h3>
+                                                    <div className="text-lg font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
+                                                        Gemini 2.0 Flash
+                                                    </div>
+                                                </div>
+                                                <span className="px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-lg text-xs font-medium">
+                                                    Fast Analysis
                                                 </span>
-                                                <span className="text-sm text-gray-500">
-                                                    Thinking Level: <span className="text-white">Low</span> (optimized for patch generation)
-                                                </span>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                                                <div className="p-3 bg-gray-900/30 rounded border border-gray-800">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-sm text-gray-500">Thinking Mode</span>
+                                                    </div>
+                                                    <span className="text-sm text-white font-medium">Low</span>
+                                                    <p className="text-xs text-gray-500 mt-1">Optimized for rapid patch generation</p>
+                                                </div>
+
+                                                <div className="p-3 bg-gray-900/30 rounded border border-gray-800">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-sm text-gray-500">Context Window</span>
+                                                    </div>
+                                                    <span className="text-sm text-white font-medium">1M tokens</span>
+                                                    <p className="text-xs text-gray-500 mt-1">Full codebase analysis capability</p>
+                                                </div>
                                             </div>
                                         </div>
 
@@ -835,12 +866,12 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                                         <div className="flex items-center gap-2">
                                                             <span className="text-gray-500 text-sm">Risk Level:</span>
                                                             <span className={`px-3 py-1 rounded-full text-sm ${getRiskLevelColor(currentAttempt.riskLevel)}`}>
-                                                                {currentAttempt.riskLevel}
+                                                                {currentAttempt.riskLevel.toUpperCase()} RISK
                                                             </span>
                                                             <span className="text-xs text-gray-500">
-                                                                {currentAttempt.riskLevel === "LOW" && "- Safe, minimal change"}
-                                                                {currentAttempt.riskLevel === "MEDIUM" && "- Moderate complexity"}
-                                                                {currentAttempt.riskLevel === "HIGH" && "- Review carefully"}
+                                                                {currentAttempt.riskLevel.toUpperCase() === "LOW" && "- Safe, minimal change"}
+                                                                {currentAttempt.riskLevel.toUpperCase() === "MEDIUM" && "- Moderate complexity"}
+                                                                {currentAttempt.riskLevel.toUpperCase() === "HIGH" && "- Review carefully"}
                                                             </span>
                                                         </div>
                                                     )}
@@ -957,12 +988,22 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
             {/* Summary Section */}
             {(job?.status === "COMPLETED" || job?.status === "FAILED") && (
                 <div className="max-w-7xl mx-auto mt-8">
-                    <div className={`card ${job.status === "COMPLETED" ? "border-green-500/30" : "border-red-500/30"}`}>
+                    <div className={`card ${job.status === "COMPLETED" ? (isImprovementSuccess || allTestsPassing ? "border-purple-500/30" : "border-green-500/30") : "border-red-500/30"}`}>
                         <div className="flex items-start justify-between gap-4 flex-wrap">
                             <div>
                                 <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
                                     {job.status === "COMPLETED" || isImprovementSuccess ? (
-                                        (baselineAttempt?.testsFailed === 0 || isImprovementSuccess) ? (
+                                        noTestsFound && isImprovementSuccess ? (
+                                            <>
+                                                <span className="text-2xl">🧪</span>
+                                                <span className="text-purple-400">Test Suggestions & Improvements</span>
+                                            </>
+                                        ) : allTestsPassing ? (
+                                            <>
+                                                <span className="text-2xl">✨</span>
+                                                <span className="text-purple-400">Code Quality Improvements</span>
+                                            </>
+                                        ) : (baselineAttempt?.testsFailed === 0 || isImprovementSuccess) ? (
                                             <>
                                                 <span className="text-2xl">✨</span>
                                                 <span className="text-purple-400">Improvements Proposed</span>
@@ -986,56 +1027,55 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                     )}
                                 </h2>
                                 <p className="text-gray-300">
-                                    {(isImprovementSuccess)
-                                        ? "AI analysis complete. Improvements have been proposed."
-                                        : (finalAttempt?.explanation && finalAttempt?.status !== "SUCCESS")
-                                            ? "A patch was proposed but could not be verified by tests."
-                                            : (job.errorMessage || (job.status === "COMPLETED" ? "All tests pass!" : "See attempt details for errors."))}
+                                    {noTestsFound && isImprovementSuccess
+                                        ? "No tests detected. AI has analyzed your code and can suggest improvements or help you write tests."
+                                        : allTestsPassing
+                                            ? "All tests are passing! AI has analyzed your code for quality improvements."
+                                            : (isImprovementSuccess)
+                                                ? "AI analysis complete. Improvements have been proposed."
+                                                : (finalAttempt?.explanation && finalAttempt?.status !== "SUCCESS")
+                                                    ? "A patch was proposed but could not be verified by tests."
+                                                    : (job.errorMessage || (job.status === "COMPLETED" ? "All tests pass!" : "See attempt details for errors."))}
                                 </p>
                             </div>
-
-                            {/* Action buttons */}
-                            <div className="flex gap-2 flex-wrap">
-                                <button
-                                    onClick={downloadReport}
-                                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm transition-colors"
-                                >
-                                    📥 Download Report
-                                </button>
-
-                                {/* Create PR Button - only show for successful completions with a GitHub repo */}
-                                {githubEnabled && job.status === "COMPLETED" && job.repoUrl?.includes("github.com") && (
-                                    <button
-                                        onClick={createPullRequest}
-                                        disabled={creatingPR}
-                                        className={`px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 ${creatingPR
-                                            ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-                                            : "bg-green-600 hover:bg-green-500 text-white"
-                                            }`}
-                                    >
-                                        {creatingPR ? (
-                                            <>
-                                                <span className="spinner-small"></span>
-                                                Creating PR...
-                                            </>
-                                        ) : (
-                                            <>
-                                                🚀 Create Pull Request
-                                            </>
-                                        )}
-                                    </button>
-                                )}
-                            </div>
-
-                            {/* PR Error message */}
-                            {prError && (
-                                <div className="mt-2 p-2 bg-red-500/10 border border-red-500/30 rounded text-sm text-red-400">
-                                    ⚠️ {prError}
-                                </div>
-                            )}
                         </div>
 
-                        {/* Test comparison or error explanation */}
+                        {/* Gemini Summary - Shown first for better context */}
+                        {finalAttempt?.explanation && (
+                            <div className="mt-6 space-y-4">
+                                {/* Improvement Type Badge */}
+                                {isImprovementSuccess && (
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="text-xs text-gray-500">Improvement Type:</span>
+                                        {noTestsFound ? (
+                                            <span className="px-3 py-1 bg-purple-500/20 text-purple-400 rounded-full text-xs font-medium">
+                                                🧪 Test Coverage + Code Quality
+                                            </span>
+                                        ) : allTestsPassing ? (
+                                            <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-xs font-medium">
+                                                ✨ Code Quality Enhancement
+                                            </span>
+                                        ) : null}
+                                        {finalAttempt.riskLevel && (
+                                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${getRiskLevelColor(finalAttempt.riskLevel)}`}>
+                                                {finalAttempt.riskLevel} Risk
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+
+                                <div className="p-4 bg-purple-500/10 rounded-lg border border-purple-500/20">
+                                    <h4 className="font-medium text-purple-400 mb-2 flex items-center gap-2">
+                                        <span>🧠</span> Gemini&apos;s {isImprovementSuccess ? "Improvement Analysis" : "Final Assessment"}
+                                    </h4>
+                                    <p className="text-sm text-gray-300 leading-relaxed">
+                                        {finalAttempt.explanation}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Test comparison or improvement cards */}
                         {testsActuallyRan ? (
                             <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="p-4 bg-red-500/10 rounded-lg border border-red-500/20">
@@ -1075,18 +1115,91 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                 </div>
                             </div>
                         ) : (isImprovementSuccess ? (
-                            <div className="mt-6 p-4 bg-purple-500/10 rounded-lg border border-purple-500/20">
-                                <div className="flex items-start gap-3">
-                                    <span className="text-2xl">✨</span>
-                                    <div>
-                                        <h4 className="font-medium text-purple-400">Improvements Proposed</h4>
-                                        <p className="text-sm text-gray-300 mt-1">
-                                            No tests were detected in the repository, so the proposed changes could not be verified automatically.
-                                            However, RepoDoctor has analyzed the code and generated a patch based on best practices.
-                                        </p>
+                            noTestsFound ? (
+                                // No tests found - show test suggestions card
+                                <div className="mt-6 space-y-4">
+                                    <div className="p-5 bg-gradient-to-br from-purple-500/10 to-blue-500/10 rounded-lg border border-purple-500/30">
+                                        <div className="flex items-start gap-4">
+                                            <div className="text-4xl">🧪</div>
+                                            <div className="flex-1">
+                                                <h4 className="font-semibold text-purple-300 mb-2">No Tests Detected</h4>
+                                                <p className="text-sm text-gray-300 mb-3">
+                                                    RepoDoctor didn&apos;t find any test files in your repository. AI analysis has been completed and improvements are available below.
+                                                </p>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                                                    <div className="p-3 bg-gray-900/50 rounded border border-purple-500/20">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <span className="text-lg">📝</span>
+                                                            <span className="font-medium text-sm text-purple-400">Code Improvements</span>
+                                                        </div>
+                                                        <p className="text-xs text-gray-400">
+                                                            Review the AI-generated patches for code quality enhancements, best practices, and potential bug fixes.
+                                                        </p>
+                                                    </div>
+                                                    <div className="p-3 bg-gray-900/50 rounded border border-blue-500/20">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <span className="text-lg">🔬</span>
+                                                            <span className="font-medium text-sm text-blue-400">Consider Adding Tests</span>
+                                                        </div>
+                                                        <p className="text-xs text-gray-400">
+                                                            Tests help verify code correctness and enable RepoDoctor to validate improvements automatically.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {finalAttempt?.status === "PATCH_FAILED" && (
+                                        <div className="p-4 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                                            <div className="flex items-start gap-3">
+                                                <span className="text-xl">⚠️</span>
+                                                <div>
+                                                    <h4 className="font-medium text-yellow-400">Patch Application Note</h4>
+                                                    <p className="text-sm text-gray-300 mt-1">
+                                                        The generated patch encountered formatting issues during automatic application, but you can still review the AI&apos;s suggestions in the Diff tab.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                // All tests passing - show quality improvements card
+                                <div className="mt-6 p-5 bg-gradient-to-br from-green-500/10 to-purple-500/10 rounded-lg border border-purple-500/30">
+                                    <div className="flex items-start gap-4">
+                                        <div className="text-4xl">✨</div>
+                                        <div className="flex-1">
+                                            <h4 className="font-semibold text-purple-300 mb-2">Code Quality Analysis Complete</h4>
+                                            <p className="text-sm text-gray-300 mb-4">
+                                                All {baselineAttempt?.testsRun || 0} tests are passing! RepoDoctor has analyzed your codebase for potential improvements.
+                                            </p>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                <div className="p-3 bg-gray-900/50 rounded border border-purple-500/20">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span>🎯</span>
+                                                        <span className="font-medium text-sm text-purple-400">Best Practices</span>
+                                                    </div>
+                                                    <p className="text-xs text-gray-400">Code style and design patterns</p>
+                                                </div>
+                                                <div className="p-3 bg-gray-900/50 rounded border border-blue-500/20">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span>⚡</span>
+                                                        <span className="font-medium text-sm text-blue-400">Performance</span>
+                                                    </div>
+                                                    <p className="text-xs text-gray-400">Optimization opportunities</p>
+                                                </div>
+                                                <div className="p-3 bg-gray-900/50 rounded border border-green-500/20">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span>🔒</span>
+                                                        <span className="font-medium text-sm text-green-400">Security</span>
+                                                    </div>
+                                                    <p className="text-xs text-gray-400">Potential vulnerabilities</p>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            )
                         ) : (
                             <div className="mt-6 p-4 bg-gray-800/50 rounded-lg">
                                 <div className="flex items-start gap-3">
@@ -1107,17 +1220,47 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                             </div>
                         ))}
 
-                        {/* Gemini Summary if available */}
-                        {finalAttempt?.explanation && (
-                            <div className="mt-6 p-4 bg-purple-500/10 rounded-lg border border-purple-500/20">
-                                <h4 className="font-medium text-purple-400 mb-2 flex items-center gap-2">
-                                    <span>🧠</span> Gemini&apos;s Final Assessment
-                                </h4>
-                                <p className="text-sm text-gray-300 leading-relaxed">
-                                    {finalAttempt.explanation}
-                                </p>
+                        {/* Action buttons - Moved to bottom */}
+                        <div className="mt-6 flex items-start justify-between gap-4 flex-wrap">
+                            <div className="flex gap-2 flex-wrap">
+                                <button
+                                    onClick={downloadReport}
+                                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm transition-colors"
+                                >
+                                    📥 Download Report
+                                </button>
+
+                                {/* Create PR Button - only show for successful completions with a GitHub repo */}
+                                {githubEnabled && job.status === "COMPLETED" && job.repoUrl?.includes("github.com") && (
+                                    <button
+                                        onClick={createPullRequest}
+                                        disabled={creatingPR}
+                                        className={`px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 ${creatingPR
+                                            ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                                            : "bg-green-600 hover:bg-green-500 text-white"
+                                            }`}
+                                    >
+                                        {creatingPR ? (
+                                            <>
+                                                <span className="spinner-small"></span>
+                                                Creating PR...
+                                            </>
+                                        ) : (
+                                            <>
+                                                🚀 Create Pull Request
+                                            </>
+                                        )}
+                                    </button>
+                                )}
                             </div>
-                        )}
+
+                            {/* PR Error message */}
+                            {prError && (
+                                <div className="mt-2 p-2 bg-red-500/10 border border-red-500/30 rounded text-sm text-red-400">
+                                    ⚠️ {prError}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
