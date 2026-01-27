@@ -4,11 +4,11 @@ COPY backend/pom.xml .
 COPY backend/src ./src
 RUN apt-get update && apt-get install -y maven && mvn package -DskipTests
 
-FROM eclipse-temurin:21-jre-jammy
+FROM eclipse-temurin:21-jdk-jammy
 # Install tools needed for DirectRunner mode:
-# - maven: for running Maven-based projects
+# - maven: for running Maven-based projects (requires JDK, not just JRE)
 # - git: for repository operations
-# Note: docker.io only needed for DockerRunner mode (not used on Render)
+# Note: Using JDK instead of JRE because DirectRunner compiles user projects
 RUN apt-get update && apt-get install -y --no-install-recommends \
     maven \
     git \

@@ -134,7 +134,13 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
     const fetchJob = useCallback(async () => {
         try {
             console.log(`[fetchJob] Fetching job: ${API_URL}/api/jobs/${jobId}`);
-            const response = await fetch(`${API_URL}/api/jobs/${jobId}`);
+            const response = await fetch(`${API_URL}/api/jobs/${jobId}`, {
+                cache: 'no-store',
+                headers: {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache'
+                }
+            });
             console.log(`[fetchJob] Response status: ${response.status}`);
             if (response.ok) {
                 const data = await response.json();
@@ -152,7 +158,13 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
     const fetchAttempts = useCallback(async () => {
         try {
             console.log(`[fetchAttempts] Fetching attempts: ${API_URL}/api/jobs/${jobId}/attempts`);
-            const response = await fetch(`${API_URL}/api/jobs/${jobId}/attempts`);
+            const response = await fetch(`${API_URL}/api/jobs/${jobId}/attempts`, {
+                cache: 'no-store',
+                headers: {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache'
+                }
+            });
             console.log(`[fetchAttempts] Response status: ${response.status}`);
             if (response.ok) {
                 const data = await response.json();
@@ -173,7 +185,11 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
     const fetchContent = useCallback(async (attemptNum: number, mode: "logs" | "diff") => {
         setContent(""); // Clear previous content immediately
         try {
-            const response = await fetch(`${API_URL}/api/jobs/${jobId}/attempts/${attemptNum}/${mode}`);
+            // Logs and diffs are immutable once created, but use short revalidation
+            // in case the attempt is still in progress
+            const response = await fetch(`${API_URL}/api/jobs/${jobId}/attempts/${attemptNum}/${mode}`, {
+                next: { revalidate: 10 } // Cache for 10 seconds
+            });
             if (response.ok) {
                 const text = await response.text();
                 setContent(text || `No ${mode} available for this attempt.`);
@@ -189,7 +205,10 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
     // Check if GitHub PR creation is enabled
     const checkGitHubStatus = useCallback(async () => {
         try {
-            const response = await fetch(`${API_URL}/api/github/status`);
+            // GitHub config rarely changes, cache for longer
+            const response = await fetch(`${API_URL}/api/github/status`, {
+                next: { revalidate: 300 } // Cache for 5 minutes
+            });
             if (response.ok) {
                 const data = await response.json();
                 setGithubEnabled(data.enabled);

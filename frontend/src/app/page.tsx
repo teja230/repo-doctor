@@ -125,7 +125,13 @@ export default function Home() {
 
   // Fetch recent jobs on mount
   useEffect(() => {
-    fetch('/api/jobs')
+    fetch('/api/jobs', {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      }
+    })
       .then(res => res.json())
       .then(data => setRecentJobs(data))
       .catch(err => console.error("Failed to fetch recent jobs:", err));
