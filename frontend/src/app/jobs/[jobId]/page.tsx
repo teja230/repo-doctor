@@ -3,7 +3,9 @@
 import { useEffect, useState, useCallback, use } from "react";
 import Link from "next/link";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+// Use relative URLs to leverage Next.js middleware proxy
+// The middleware will forward /api/* requests to the backend
+const API_URL = "";
 
 interface JobEvent {
     type: string;

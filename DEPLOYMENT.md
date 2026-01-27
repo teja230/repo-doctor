@@ -128,7 +128,7 @@ GEMINI_API_KEY=<your-gemini-api-key>
 
 **Environment Variables:**
 ```
-NEXT_PUBLIC_API_URL=https://repodoctor-backend.onrender.com
+API_BACKEND_URL=https://repodoctor-backend.onrender.com
 ```
 
 **Important:** Replace `repodoctor-backend.onrender.com` with your actual backend URL from above!
@@ -151,7 +151,7 @@ NEXT_PUBLIC_API_URL=https://repodoctor-backend.onrender.com
 
 ### Issue 4: "Going to http://localhost:8080"
 - **Cause**: API URL was hardcoded to localhost
-- **Fix**: Made it configurable via `NEXT_PUBLIC_API_URL` environment variable
+- **Fix**: Made it configurable via `API_BACKEND_URL` environment variable
 
 ---
 
