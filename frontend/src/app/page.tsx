@@ -10,7 +10,7 @@ export default function Home() {
 
   const [repoUrl, setRepoUrl] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [maxAttempts, setMaxAttempts] = useState(2);
+  const [maxAttempts, setMaxAttempts] = useState(1);
   const [allowNetwork, setAllowNetwork] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -355,7 +355,7 @@ export default function Home() {
                   <input
                     type="range"
                     min="1"
-                    max="4"
+                    max="2"
                     value={maxAttempts}
                     onChange={(e) => setMaxAttempts(parseInt(e.target.value))}
                     className="flex-1 accent-blue-500"

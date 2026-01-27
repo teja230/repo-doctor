@@ -76,7 +76,7 @@ public class JobController {
     public ResponseEntity<?> createJob(
             @RequestParam(required = false) String repoUrl,
             @RequestParam(required = false) MultipartFile repoZip,
-            @RequestParam(defaultValue = "2") int maxAttempts,
+            @RequestParam(defaultValue = "1") int maxAttempts,
             @RequestParam(defaultValue = "false") boolean allowNetwork) {
 
         try {
