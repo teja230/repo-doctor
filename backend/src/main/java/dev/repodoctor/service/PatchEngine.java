@@ -106,8 +106,8 @@ public class PatchEngine {
                 String[] lines = normalizedDiff.split("\n", -1);
                 for (int i = 0; i < Math.min(20, lines.length); i++) {
                     log.error("Patch line {}: [{}] len={}", i + 1,
-                        lines[i].replace("\t", "\\t").replace("\r", "\\r"),
-                        lines[i].length());
+                            lines[i].replace("\t", "\\t").replace("\r", "\\r"),
+                            lines[i].length());
                 }
 
                 return new PatchResult(false, "Patch would not apply cleanly: " + result);
@@ -194,6 +194,16 @@ public class PatchEngine {
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i];
 
+            // 1. Fix context lines that are missing the leading space
+            // If a line is in a hunk (after @@) and doesn't start with +, -, or space,
+            // it's likely a context line where the LLM skipped the space.
+            if (isInHunk(lines, i)) {
+                if (!line.isEmpty() && !line.startsWith("+") && !line.startsWith("-") && !line.startsWith(" ")
+                        && !line.startsWith("@@")) {
+                    line = " " + line;
+                }
+            }
+
             // Ensure patch ends with a newline
             if (i == lines.length - 1 && !line.isEmpty()) {
                 fixed.append(line).append("\n");
@@ -207,7 +217,7 @@ public class PatchEngine {
 
         String result = fixed.toString();
 
-        // Ensure the patch ends with exactly one newline
+        // 2. Cleanup double newlines and ensure final newline
         while (result.endsWith("\n\n")) {
             result = result.substring(0, result.length() - 1);
         }
@@ -216,6 +226,17 @@ public class PatchEngine {
         }
 
         return result;
+    }
+
+    private boolean isInHunk(String[] lines, int currentIndex) {
+        // Look back for the nearest hunk header
+        for (int i = currentIndex; i >= 0; i--) {
+            if (lines[i].startsWith("@@"))
+                return true;
+            if (lines[i].startsWith("diff --git"))
+                return false;
+        }
+        return false;
     }
 
     /**

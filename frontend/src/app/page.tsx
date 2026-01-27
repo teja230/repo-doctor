@@ -239,7 +239,14 @@ export default function Home() {
         }
       });
 
-      const data = await response.json();
+      let data;
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        data = { error: text || `Status ${response.status}: ${response.statusText}` };
+      }
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to create job");

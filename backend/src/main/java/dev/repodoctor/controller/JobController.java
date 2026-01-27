@@ -3,6 +3,8 @@ package dev.repodoctor.controller;
 import dev.repodoctor.llm.LLMClient;
 import dev.repodoctor.model.*;
 import dev.repodoctor.service.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +20,8 @@ import java.util.*;
 @RestController
 @RequestMapping("/api/jobs")
 public class JobController {
+
+    private static final Logger log = LoggerFactory.getLogger(JobController.class);
 
     private final JobService jobService;
     private final AttemptRepository attemptRepository;
@@ -100,11 +104,20 @@ public class JobController {
                     "llmConfigured", llmClient.isConfigured()));
 
         } catch (IllegalArgumentException e) {
+            log.warn("Invalid job request: {}", e.getMessage());
             return ResponseEntity.badRequest()
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Collections.singletonMap("error",
+                            e.getMessage() != null ? e.getMessage() : "Invalid request"));
         } catch (IOException e) {
+            log.error("IO error processing job", e);
             return ResponseEntity.internalServerError()
-                    .body(Map.of("error", "Failed to process repository: " + e.getMessage()));
+                    .body(Collections.singletonMap("error",
+                            "Failed to process repository: " + (e.getMessage() != null ? e.getMessage() : "IO error")));
+        } catch (Exception e) {
+            log.error("Unexpected error in createJob", e);
+            return ResponseEntity.internalServerError()
+                    .body(Collections.singletonMap("error", "An unexpected error occurred: "
+                            + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName())));
         }
     }
 
@@ -131,7 +144,6 @@ public class JobController {
         response.put("createdAt", job.getCreatedAt());
         response.put("completedAt", job.getCompletedAt());
         response.put("errorMessage", job.getErrorMessage());
-        response.put("attemptCount", job.getAttempts().size());
         response.put("attemptCount", job.getAttempts().size());
         response.put("llmConfigured", llmClient.isConfigured());
         response.put("sessionId", job.getSessionId());

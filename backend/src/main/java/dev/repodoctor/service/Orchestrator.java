@@ -98,9 +98,10 @@ public class Orchestrator {
             // Run baseline (Attempt 0)
             Attempt baseline = runAttempt(job, 0, true);
 
-            if (baseline.getStatus() == AttemptStatus.SUCCESS) {
-                // Tests already pass!
-                completeJob(job, true, "Tests already pass - no fixes needed");
+            // If baseline succeeded, we still continue to generate "Improvements"
+            // instead of just stopping, unless maxAttempts is 0.
+            if (baseline.getStatus() == AttemptStatus.SUCCESS && job.getMaxAttempts() == 0) {
+                completeJob(job, true, "Tests already pass - no further improvements requested");
                 return;
             }
 
@@ -115,8 +116,10 @@ public class Orchestrator {
                 Attempt attempt = runAttempt(job, attemptNum, false);
 
                 if (attempt.getStatus() == AttemptStatus.SUCCESS) {
-                    completeJob(job, true,
-                            String.format("Fixed after %d attempt(s)! All tests pass.", attemptNum));
+                    String message = baseline.getStatus() == AttemptStatus.SUCCESS
+                            ? String.format("Analysis complete! Applied improvements in %d attempt(s).", attemptNum)
+                            : String.format("Fixed and improved after %d attempt(s)! All tests pass.", attemptNum);
+                    completeJob(job, true, message);
                     return;
                 }
 
@@ -129,8 +132,11 @@ public class Orchestrator {
             }
 
             // Max attempts reached
-            completeJob(job, false,
-                    String.format("Max attempts (%d) reached without fixing all tests", job.getMaxAttempts()));
+            boolean isSuccessfulCompletion = baseline.getStatus() == AttemptStatus.SUCCESS;
+            String message = isSuccessfulCompletion
+                    ? "Analysis complete. Review the proposed suggestions even if some could not be applied automatically."
+                    : String.format("Max attempts (%d) reached without fixing all tests", job.getMaxAttempts());
+            completeJob(job, isSuccessfulCompletion, message);
 
         } catch (Exception e) {
             log.error("Job failed with exception", e);
@@ -295,8 +301,8 @@ public class Orchestrator {
 
             eventService.emitRunCompleted(jobId, attemptNumber, result.exitCode(), result.isSuccess());
 
-            // For baseline failures, generate analysis without using LLM
-            if (isBaseline && !result.isSuccess()) {
+            // For baseline, generate analysis summary
+            if (isBaseline) {
                 try {
                     BaselineAnalyzer.BaselineAnalysis analysis = baselineAnalyzer.analyzeFailure(
                             result.logs(),

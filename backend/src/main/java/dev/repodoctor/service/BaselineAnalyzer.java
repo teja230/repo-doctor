@@ -60,6 +60,12 @@ public class BaselineAnalyzer {
         } else if (testsFailed > 0) {
             summary = String.format("%d out of %d tests failed. Review the test logs for specific error messages.",
                     testsFailed, testsRun);
+        } else if (testsRun == 0) {
+            failureType = "NO_TESTS_FOUND";
+            summary = "No tests were detected or executed. RepoDoctor can suggest general code improvements, documentation, or help you write initial tests.";
+        } else {
+            failureType = "SUCCESS";
+            summary = "All tests are passing! RepoDoctor can now look for ways to improve code quality, performance, or suggest refactorings.";
         }
 
         return new BaselineAnalysis(

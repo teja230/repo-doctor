@@ -247,8 +247,11 @@ public class GeminiClient implements LLMClient {
 
         // Build the URI to log it
         String uri = GEMINI_API_BASE + model + ":generateContent?key=" +
-                (config.getGemini().getApiKey().substring(0, Math.min(10, config.getGemini().getApiKey().length())) + "...");
-        log.info("Request URI: {}", uri.replace(config.getGemini().getApiKey().substring(0, Math.min(10, config.getGemini().getApiKey().length())), "***"));
+                (config.getGemini().getApiKey().substring(0, Math.min(10, config.getGemini().getApiKey().length()))
+                        + "...");
+        log.info("Request URI: {}", uri.replace(
+                config.getGemini().getApiKey().substring(0, Math.min(10, config.getGemini().getApiKey().length())),
+                "***"));
 
         String responseBody;
         try {
@@ -270,10 +273,12 @@ public class GeminiClient implements LLMClient {
                             .onRetryExhaustedThrow((retryBackoffSpec, retrySignal) -> retrySignal.failure()))
                     .doOnError(throwable -> {
                         long elapsed = System.currentTimeMillis() - startTime;
-                        log.error("✗ Gemini API call failed after {}ms: {}", elapsed, throwable.getMessage(), throwable);
+                        log.error("✗ Gemini API call failed after {}ms: {}", elapsed, throwable.getMessage(),
+                                throwable);
                         if (throwable instanceof WebClientResponseException) {
                             WebClientResponseException ex = (WebClientResponseException) throwable;
-                            log.error("Response status: {}, body: {}", ex.getStatusCode(), ex.getResponseBodyAsString());
+                            log.error("Response status: {}, body: {}", ex.getStatusCode(),
+                                    ex.getResponseBodyAsString());
                         }
                     })
                     .block();
@@ -427,7 +432,8 @@ public class GeminiClient implements LLMClient {
                     diff.length(), diff.substring(0, Math.min(300, diff.length())));
             // Log the raw JSON field to see if escaping is correct
             log.debug("Raw JSON unified_diff value: {}",
-                    node.path("unified_diff").toString().substring(0, Math.min(500, node.path("unified_diff").toString().length())));
+                    node.path("unified_diff").toString().substring(0,
+                            Math.min(500, node.path("unified_diff").toString().length())));
         } else {
             log.error("Parsing patch proposal: unified_diff is EMPTY. Full JSON: {}", json);
             throw new RuntimeException("Invalid patch proposal: unified_diff is empty");
@@ -459,7 +465,12 @@ public class GeminiClient implements LLMClient {
 
     // System instruction for patch generation
     private static final String SYSTEM_INSTRUCTION = """
-            You are RepoDoctor, an automated build-fixing agent. Your goal is to make the repository's test command pass with the smallest safe change.
+            You are RepoDoctor, an automated agent for improving code and fixing builds. Your goal is to:
+            1. Fix any failing builds or tests (top priority).
+            2. If tests pass or are missing, suggest high-quality code improvements, best practices, refactoring, or help write initial tests.
+            3. Always ensure your changes are safe and the codebase remains stable.
+            4. If applying improvements, focus on readability, performance, or modern patterns.
+            5. Provide clear, concise explanations for your changes.
 
             CRITICAL RULES FOR unified_diff:
             1. The unified_diff MUST be a COMPLETE, valid git-style unified diff
@@ -511,16 +522,18 @@ public class GeminiClient implements LLMClient {
 
     // Patch prompt template
     private static final String PATCH_PROMPT_TEMPLATE = """
-            Analyze this failing build and propose a fix.
-
             Context:
             - Build tool: {{BUILD_TOOL}}
             - Command run: {{COMMAND}}
             - Repo tree (top-level): {{TREE}}
             - Relevant files (full content with LINE NUMBERS): {{FILE_CONTEXT}}
             - Previous attempt diffs (if any): {{PRIOR_DIFFS_SUMMARY}}
-            - Failure summary (structured): {{FAILURE_SUMMARY_JSON}}
-            - Log tail (most relevant ~200-400 lines): {{LOG_TAIL}}
+            - Current State/Failure summary: {{FAILURE_SUMMARY_JSON}}
+            - Log tail (if failing): {{LOG_TAIL}}
+
+            OBJECTIVE:
+            - If "failureType" is "SUCCESS" or "NO_TESTS_FOUND", propose a set of code improvements, refactors, or new tests. Focus on making the code state-of-the-art.
+            - If "failureType" is a specific error (e.g., COMPILATION_ERROR, TEST_FAILURE), prioritize fixing that error first.
 
             IMPORTANT INSTRUCTIONS:
             1. Look at the file content carefully - note the EXACT line numbers
@@ -529,6 +542,7 @@ public class GeminiClient implements LLMClient {
             4. COMPLETE the replacement line - do not leave it empty or partial
             5. Include 3 lines of unchanged context before and after your changes
             6. Make sure the '+' lines contain the FULL corrected code
+            7. Ensure your diff is a valid git diff format starting with 'diff --git'.
 
             Return JSON only. No markdown. No code fences. The unified_diff field must be a complete, valid git diff.
             """;
@@ -540,7 +554,7 @@ public class GeminiClient implements LLMClient {
                     "failureType",
                     Map.of("type", "string", "enum",
                             List.of("COMPILATION_ERROR", "TEST_FAILURE", "RUNTIME_ERROR", "DEPENDENCY_ERROR",
-                                    "CONFIGURATION_ERROR", "UNKNOWN")),
+                                    "CONFIGURATION_ERROR", "SUCCESS", "NO_TESTS_FOUND", "UNKNOWN")),
                     "primaryError", Map.of("type", "string"),
                     "failingTests", Map.of("type", "array", "items", Map.of("type", "string")),
                     "stackTraceSnippets", Map.of("type", "array", "items", Map.of("type", "string")),
