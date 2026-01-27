@@ -318,12 +318,48 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
 
     const getTimelineClass = (attempt: Attempt) => {
         const status = attempt.status;
+
+        // If AI analysis succeeded (explanation exists), show as success
+        // This includes PATCH_FAILED - the analysis worked even if auto-apply didn't
+        if (attempt.explanation) {
+            // Baseline with no tests = analysis complete
+            if (attempt.attemptNumber === 0 && attempt.testsRun === 0) return "success";
+            // Non-baseline with explanation = improvement proposed
+            if (attempt.attemptNumber > 0) return "success";
+        }
+
+        // Traditional success/failure for test runs
         if (status === "SUCCESS") return "success";
-        if (status?.includes("FAIL") || status?.includes("ERROR") || status?.includes("INVALID")) return "failed";
         if (status === "RUNNING" || status === "PENDING" || status === "ANALYZING" || status === "PATCHING" || status === "RATE_LIMIT_PAUSE") return "running";
-        // Special case for improvements
-        if (attempt.testsRun === 0 && attempt.explanation && attempt.attemptNumber > 0) return "success";
+
+        // Only show failed if no explanation (true failure)
+        if (status?.includes("FAIL") || status?.includes("ERROR") || status?.includes("INVALID")) {
+            if (!attempt.explanation) return "failed";
+        }
+
         return "";
+    };
+
+    // Get display status for attempt badge
+    const getDisplayStatus = (attempt: Attempt): string => {
+        // If AI provided analysis, show success status
+        if (attempt.explanation) {
+            // Baseline with no tests
+            if (attempt.attemptNumber === 0 && attempt.testsRun === 0) {
+                return "ANALYZED";
+            }
+            // Attempts with improvements (including PATCH_FAILED with explanation)
+            if (attempt.attemptNumber > 0 && attempt.testsRun === 0) {
+                return "PROPOSED";
+            }
+            // Patch failed but analysis exists
+            if (attempt.status === "PATCH_FAILED") {
+                return "PROPOSED";
+            }
+        }
+
+        // Return actual status for all other cases
+        return attempt.status;
     };
 
     const formatDiff = (diff: string) => {
@@ -549,14 +585,12 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                             {attempt.attemptNumber === 0 ? "Baseline" : `Attempt ${attempt.attemptNumber}`}
                                         </span>
                                         <div className="flex items-center gap-2">
-                                            <span className={`status-badge text-xs ${(attempt.testsRun === 0 && attempt.explanation && attempt.attemptNumber > 0)
-                                                ? "text-purple-400 bg-purple-500/20"
-                                                : getStatusClass(attempt.status)
+                                            <span className={`status-badge text-xs ${
+                                                attempt.explanation && (attempt.testsRun === 0 || attempt.status === "PATCH_FAILED")
+                                                    ? "text-purple-400 bg-purple-500/20"
+                                                    : getStatusClass(attempt.status)
                                                 }`}>
-                                                {(attempt.testsRun === 0 && attempt.explanation && attempt.attemptNumber > 0)
-                                                    ? "PROPOSED"
-                                                    : attempt.status
-                                                }
+                                                {getDisplayStatus(attempt)}
                                             </span>
                                         </div>
                                     </div>
@@ -581,7 +615,8 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                         ) : (
                                             <span className="text-gray-500">🧪 No tests ran</span>
                                         )}
-                                        {attempt.exitCode !== null && attempt.exitCode !== 0 && (
+                                        {/* Only show exit code if it's a real failure (no AI analysis) */}
+                                        {attempt.exitCode !== null && attempt.exitCode !== 0 && !attempt.explanation && (
                                             <span className="text-red-400">Exit: {attempt.exitCode}</span>
                                         )}
                                     </div>
@@ -591,7 +626,8 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                         ⏱️ {formatDuration(attempt.startedAt, attempt.completedAt)}
                                     </div>
 
-                                    {attempt.errorMessage && (
+                                    {/* Only show error if no AI analysis succeeded */}
+                                    {attempt.errorMessage && !attempt.explanation && (
                                         <div className="text-xs text-red-400 mt-2 bg-red-500/10 p-2 rounded border border-red-500/20">
                                             {attempt.errorMessage}
                                         </div>
