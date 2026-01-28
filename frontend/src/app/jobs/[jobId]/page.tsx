@@ -1316,6 +1316,26 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                             </div>
                         ))}
 
+                        {/* PR Access Warning */}
+                        {githubEnabled && job.status === "COMPLETED" && job.repoUrl?.includes("github.com") && (
+                            <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                                <div className="flex items-start gap-3">
+                                    <span className="text-2xl">ℹ️</span>
+                                    <div className="flex-1">
+                                        <h4 className="font-semibold text-blue-400 mb-1">Repository Access Required</h4>
+                                        <p className="text-sm text-gray-300 mb-2">
+                                            To create a pull request, you need <strong>write access</strong> to this repository.
+                                        </p>
+                                        <ul className="text-sm text-gray-400 space-y-1 ml-4 list-disc">
+                                            <li>If you own this repository, you&apos;ll be able to create the PR directly</li>
+                                            <li>If this is someone else&apos;s repository, you&apos;ll need to be added as a collaborator</li>
+                                            <li>For public repos you don&apos;t own, fork the repository first</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Action buttons - Moved to bottom */}
                         <div className="mt-6 flex items-start justify-between gap-4 flex-wrap">
                             <div className="flex gap-2 flex-wrap">

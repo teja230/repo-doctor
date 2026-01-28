@@ -110,18 +110,28 @@ public class GitHubController {
                     .location(URI.create(githubCompareUrl))
                     .build();
 
+        } catch (IllegalStateException e) {
+            // User doesn't have write access to the repository
+            log.warn("PR creation failed - insufficient permissions: {}", e.getMessage());
+            String errorUrl = String.format("%s/error?type=NO_WRITE_ACCESS&message=%s",
+                    gitHubConfig.getFrontendUrl(),
+                    URLEncoder.encode(e.getMessage(), StandardCharsets.UTF_8));
+            return ResponseEntity.status(HttpStatus.FOUND)
+                    .location(URI.create(errorUrl))
+                    .build();
+
         } catch (IllegalArgumentException e) {
             log.error("OAuth callback validation failed", e);
-            String errorUrl = String.format("%s/error?message=%s",
+            String errorUrl = String.format("%s/error?type=VALIDATION_ERROR&message=%s",
                     gitHubConfig.getFrontendUrl(),
-                    URLEncoder.encode("OAuth validation failed: " + e.getMessage(), StandardCharsets.UTF_8));
+                    URLEncoder.encode(e.getMessage(), StandardCharsets.UTF_8));
             return ResponseEntity.status(HttpStatus.FOUND)
                     .location(URI.create(errorUrl))
                     .build();
 
         } catch (IOException | InterruptedException e) {
             log.error("OAuth callback failed", e);
-            String errorUrl = String.format("%s/error?message=%s",
+            String errorUrl = String.format("%s/error?type=API_ERROR&message=%s",
                     gitHubConfig.getFrontendUrl(),
                     URLEncoder.encode("Failed to prepare PR: " + e.getMessage(), StandardCharsets.UTF_8));
             return ResponseEntity.status(HttpStatus.FOUND)

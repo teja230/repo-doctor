@@ -266,6 +266,20 @@ public class GitHubService {
         }
 
         JsonNode json = objectMapper.readTree(response.body());
+
+        // Check if user has push access
+        JsonNode permissions = json.get("permissions");
+        boolean hasPushAccess = permissions != null && permissions.get("push").asBoolean(false);
+
+        if (!hasPushAccess) {
+            log.warn("User does not have push access to {}/{}", owner, repo);
+            throw new IllegalStateException(String.format(
+                    "You don't have write access to %s/%s. " +
+                    "To create a PR, you need to either: (1) Be added as a collaborator, or (2) Fork the repository first. " +
+                    "GitHub PR creation currently requires write access to the repository.",
+                    owner, repo));
+        }
+
         return json.get("default_branch").asText();
     }
 
