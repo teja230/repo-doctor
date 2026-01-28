@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { checkBackendHealth, waitForBackendHealth } from "@/lib/backend-health";
 
 export default function Home() {
   const router = useRouter();
@@ -26,6 +27,12 @@ export default function Home() {
   const [urlValidation, setUrlValidation] = useState<{ valid: boolean; message: string } | null>(null);
   const [sessionId, setSessionId] = useState<string>("");
   const [showAllJobs, setShowAllJobs] = useState(false);
+
+  // Backend health state
+  const [backendWaking, setBackendWaking] = useState(false);
+  const [wakeupProgress, setWakeupProgress] = useState<string>("");
+  const [wakeupAttempt, setWakeupAttempt] = useState<number>(0);
+  const [wakeupMax, setWakeupMax] = useState<number>(20);
 
   // Initialize session ID
   useEffect(() => {
@@ -207,8 +214,43 @@ export default function Home() {
     e.preventDefault();
     setError("");
     setLoading(true);
+    setBackendWaking(false);
 
     try {
+      // Step 1: Check backend health
+      const healthCheck = await checkBackendHealth();
+
+      if (!healthCheck.healthy) {
+        // Backend is down/waking - show wake-up UI
+        setBackendWaking(true);
+        setWakeupProgress("Backend is starting up... This may take up to 60 seconds.");
+
+        // Wait for backend to become healthy
+        const isHealthy = await waitForBackendHealth(
+          (attempt, max, message) => {
+            setWakeupAttempt(attempt);
+            setWakeupMax(max);
+            setWakeupProgress(message);
+          },
+          20, // max attempts
+          3000, // initial delay
+          10000 // max delay
+        );
+
+        if (!isHealthy) {
+          setBackendWaking(false);
+          setLoading(false);
+          setError("Backend is not responding. Please try again in a few minutes or contact support.");
+          return;
+        }
+
+        setWakeupProgress("Backend is ready! Submitting your job...");
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Brief pause to show success
+      }
+
+      setBackendWaking(false);
+
+      // Step 2: Validate input
       const formData = new FormData();
 
       if (selectedFile) {
@@ -231,6 +273,7 @@ export default function Home() {
       formData.append("maxAttempts", maxAttempts.toString());
       formData.append("allowNetwork", allowNetwork.toString());
 
+      // Step 3: Submit job
       const response = await fetch('/api/jobs', {
         method: "POST",
         body: formData,
@@ -252,8 +295,9 @@ export default function Home() {
         throw new Error(data.error || "Failed to create job");
       }
 
-      router.push(`/jobs/${data.jobId}`);
+      router.push(`/jobs/${data.jobId}/wait`);
     } catch (err) {
+      setBackendWaking(false);
       setError(err instanceof Error ? err.message : "An error occurred");
       setLoading(false);
     }
@@ -430,6 +474,39 @@ export default function Home() {
                   <p className="text-sm text-yellow-200">
                     Network access allows dependency downloads but reduces sandbox security.
                   </p>
+                </div>
+              </div>
+            )}
+
+            {/* Backend Wake-up Progress */}
+            {backendWaking && (
+              <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <div className="spinner-small mt-0.5"></div>
+                  <div className="flex-1">
+                    <h4 className="font-medium text-blue-400 mb-1">Waking Up Backend...</h4>
+                    <p className="text-sm text-gray-300 mb-3">{wakeupProgress}</p>
+
+                    {/* Progress bar */}
+                    <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-500"
+                        style={{ width: `${(wakeupAttempt / wakeupMax) * 100}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+                      <span>Attempt {wakeupAttempt}/{wakeupMax}</span>
+                      <span>{Math.round((wakeupAttempt / wakeupMax) * 100)}%</span>
+                    </div>
+
+                    <div className="mt-3 text-xs text-gray-500 space-y-1">
+                      <div>💡 <strong>Why is this happening?</strong></div>
+                      <div className="ml-5">
+                        RepoDoctor uses Render&apos;s free tier, which sleeps after inactivity.
+                        The backend is now waking up - this usually takes 30-60 seconds.
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
