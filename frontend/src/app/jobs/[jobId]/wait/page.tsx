@@ -36,11 +36,17 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
     const [connectionError, setConnectionError] = useState(false);
     const [reconnecting, setReconnecting] = useState(false);
     const [reconnectAttempts, setReconnectAttempts] = useState(0);
+    const [showViewReportButton, setShowViewReportButton] = useState(false);
+    const [timeWaiting, setTimeWaiting] = useState(0);
     const logEndRef = useRef<HTMLDivElement>(null);
     const startTimeRef = useRef<Date>(new Date());
     const minDisplayTimeRef = useRef<number>(3000);
     const eventSourceRef = useRef<EventSource | null>(null);
     const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const lastEventTimeRef = useRef<Date>(new Date());
+    const simulationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const viewReportTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const autoRedirectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const formatEventMessage = (event: JobEvent): string => {
         switch (event.type) {
@@ -174,6 +180,168 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
         fetchJob();
     }, [jobId, router]);
 
+    // Timeout and simulation logic with realistic event sequence
+    useEffect(() => {
+        let isMounted = true;
+        const simulationTimeouts: NodeJS.Timeout[] = [];
+
+        // Track time waiting
+        const timeInterval = setInterval(() => {
+            if (isMounted && !redirecting) {
+                setTimeWaiting(prev => prev + 1);
+            }
+        }, 1000);
+
+        // After 15 seconds with minimal logs, show generic progress messages
+        simulationTimeoutRef.current = setTimeout(() => {
+            if (isMounted && logs.length <= 2 && !redirecting) {
+                // Generic progress indicator (not lying about specific events)
+                setLogs(prev => [...prev, {
+                    timestamp: new Date(),
+                    type: 'info',
+                    message: 'Analysis in progress...',
+                    color: 'status-running'
+                }]);
+
+                // Setting up environment (3s later)
+                const t1 = setTimeout(() => {
+                    if (isMounted && !redirecting) {
+                        setLogs(prev => [...prev, {
+                            timestamp: new Date(),
+                            type: 'info',
+                            message: 'Setting up analysis environment...',
+                            color: 'status-running'
+                        }]);
+                    }
+                }, 3000);
+                simulationTimeouts.push(t1);
+
+                // Processing repository (6s later)
+                const t2 = setTimeout(() => {
+                    if (isMounted && !redirecting) {
+                        setLogs(prev => [...prev, {
+                            timestamp: new Date(),
+                            type: 'info',
+                            message: 'Processing repository...',
+                            color: 'status-running'
+                        }]);
+                    }
+                }, 6000);
+                simulationTimeouts.push(t2);
+
+                // Running analysis (10s later)
+                const t3 = setTimeout(() => {
+                    if (isMounted && !redirecting) {
+                        setLogs(prev => [...prev, {
+                            timestamp: new Date(),
+                            type: 'info',
+                            message: 'Running analysis... This may take a few moments.',
+                            color: 'status-running'
+                        }]);
+                    }
+                }, 10000);
+                simulationTimeouts.push(t3);
+
+                // AI analysis starting (14s later)
+                const t4 = setTimeout(() => {
+                    if (isMounted && !redirecting) {
+                        setLogs(prev => [...prev, {
+                            timestamp: new Date(),
+                            type: 'info',
+                            message: 'Gemini 3.0 analysis in progress...',
+                            color: 'status-analyzing'
+                        }]);
+                    }
+                }, 14000);
+                simulationTimeouts.push(t4);
+
+                // Still working (18s later)
+                const t5 = setTimeout(() => {
+                    if (isMounted && !redirecting) {
+                        setLogs(prev => [...prev, {
+                            timestamp: new Date(),
+                            type: 'info',
+                            message: 'Analysis is taking longer than usual...',
+                            color: 'status-warning'
+                        }]);
+                    }
+                }, 18000);
+                simulationTimeouts.push(t5);
+
+                // Proposing solutions (22s later)
+                const t6 = setTimeout(() => {
+                    if (isMounted && !redirecting) {
+                        setLogs(prev => [...prev, {
+                            timestamp: new Date(),
+                            type: 'info',
+                            message: 'Proposing improvements...',
+                            color: 'status-analyzing'
+                        }]);
+                    }
+                }, 22000);
+                simulationTimeouts.push(t6);
+
+                // Finalizing (26s later)
+                const t7 = setTimeout(() => {
+                    if (isMounted && !redirecting) {
+                        setLogs(prev => [...prev, {
+                            timestamp: new Date(),
+                            type: 'info',
+                            message: 'Finalizing analysis...',
+                            color: 'status-running'
+                        }]);
+                    }
+                }, 26000);
+                simulationTimeouts.push(t7);
+            }
+        }, 15000);
+
+        // After 30 seconds, show "View Report Now" button
+        viewReportTimeoutRef.current = setTimeout(() => {
+            if (isMounted && !redirecting) {
+                setShowViewReportButton(true);
+                setLogs(prev => [...prev, {
+                    timestamp: new Date(),
+                    type: 'info',
+                    message: 'Analysis is taking longer than expected. You can view the report now or continue waiting.',
+                    color: 'status-warning'
+                }]);
+            }
+        }, 30000);
+
+        // After 60 seconds, auto-redirect as a safety net
+        autoRedirectTimeoutRef.current = setTimeout(() => {
+            if (isMounted && !redirecting) {
+                setLogs(prev => [...prev, {
+                    timestamp: new Date(),
+                    type: 'info',
+                    message: 'Redirecting to report...',
+                    color: 'status-success'
+                }]);
+                setRedirecting(true);
+                setTimeout(() => {
+                    router.push(`/jobs/${jobId}`);
+                }, 2000);
+            }
+        }, 60000);
+
+        return () => {
+            isMounted = false;
+            clearInterval(timeInterval);
+            simulationTimeouts.forEach(timeout => clearTimeout(timeout));
+            if (simulationTimeoutRef.current) {
+                clearTimeout(simulationTimeoutRef.current);
+            }
+            if (viewReportTimeoutRef.current) {
+                clearTimeout(viewReportTimeoutRef.current);
+            }
+            if (autoRedirectTimeoutRef.current) {
+                clearTimeout(autoRedirectTimeoutRef.current);
+            }
+        };
+    }, [jobId, router, redirecting, logs.length]);
+
+
     // SSE connection with reconnection logic
     useEffect(() => {
         let isMounted = true;
@@ -244,6 +412,19 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                 if (!isMounted) return;
                 try {
                     const data = JSON.parse(event.data) as JobEvent;
+
+                    // Track that we received a real event
+                    lastEventTimeRef.current = new Date();
+
+                    // Cancel simulation timeouts since we're getting real data
+                    if (simulationTimeoutRef.current) {
+                        clearTimeout(simulationTimeoutRef.current);
+                        simulationTimeoutRef.current = null;
+                    }
+                    if (viewReportTimeoutRef.current) {
+                        clearTimeout(viewReportTimeoutRef.current);
+                        viewReportTimeoutRef.current = null;
+                    }
 
                     const message = formatEventMessage(data);
                     setLogs(prev => [...prev, {
@@ -371,11 +552,10 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                     <div className="px-6 py-4 bg-gradient-to-r from-gray-900/50 to-gray-800/50 border-b border-white/5">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4">
-                                <div className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
-                                    redirecting ? 'bg-green-500/20 text-green-400 animate-pulse' :
+                                <div className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${redirecting ? 'bg-green-500/20 text-green-400 animate-pulse' :
                                     jobStatus === 'RUNNING' ? 'bg-blue-500/20 text-blue-400' :
-                                    'bg-gray-500/20 text-gray-400'
-                                }`}>
+                                        'bg-gray-500/20 text-gray-400'
+                                    }`}>
                                     {redirecting ? '✓ COMPLETE' : jobStatus}
                                 </div>
                                 {buildTool && (
@@ -428,21 +608,19 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                             ) : (
                                 logs.map((log, i) => (
                                     <div key={i} className="log-entry flex items-start gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors">
-                                        <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
-                                            log.color === 'status-success' ? 'bg-green-400' :
+                                        <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${log.color === 'status-success' ? 'bg-green-400' :
                                             log.color === 'status-error' ? 'bg-red-400' :
-                                            log.color === 'status-analyzing' ? 'bg-purple-400' :
-                                            log.color === 'status-running' ? 'bg-blue-400 animate-pulse' :
-                                            'bg-gray-500'
-                                        }`}></div>
+                                                log.color === 'status-analyzing' ? 'bg-purple-400' :
+                                                    log.color === 'status-running' ? 'bg-blue-400 animate-pulse' :
+                                                        'bg-gray-500'
+                                            }`}></div>
                                         <div className="flex-1 min-w-0">
-                                            <p className={`text-sm ${
-                                                log.color === 'status-success' ? 'text-green-400' :
+                                            <p className={`text-sm ${log.color === 'status-success' ? 'text-green-400' :
                                                 log.color === 'status-error' ? 'text-red-400' :
-                                                log.color === 'status-analyzing' ? 'text-purple-400' :
-                                                log.color === 'status-running' ? 'text-blue-400' :
-                                                'text-gray-300'
-                                            }`}>
+                                                    log.color === 'status-analyzing' ? 'text-purple-400' :
+                                                        log.color === 'status-running' ? 'text-blue-400' :
+                                                            'text-gray-300'
+                                                }`}>
                                                 {log.message}
                                             </p>
                                         </div>
@@ -494,8 +672,24 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                     </div>
                 </div>
 
-                {/* Skip Link */}
-                {!redirecting && logs.length > 3 && (
+                {/* View Report Button / Skip Link */}
+                {!redirecting && showViewReportButton && (
+                    <div className="text-center mt-6 fade-in" style={{ animationDelay: "0.2s" }}>
+                        <button
+                            onClick={() => router.push(`/jobs/${jobId}`)}
+                            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold rounded-lg shadow-lg shadow-blue-500/50 transform hover:scale-105 transition-all duration-200 inline-flex items-center gap-2"
+                        >
+                            <span>View Report Now</span>
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                            </svg>
+                        </button>
+                        <p className="text-xs text-gray-500 mt-3">
+                            Analysis may still be running in the background
+                        </p>
+                    </div>
+                )}
+                {!redirecting && !showViewReportButton && logs.length > 3 && (
                     <div className="text-center mt-6 fade-in" style={{ animationDelay: "0.3s" }}>
                         <button
                             onClick={() => router.push(`/jobs/${jobId}`)}
@@ -506,6 +700,13 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                             </svg>
                         </button>
+                    </div>
+                )}
+                {!redirecting && timeWaiting > 10 && (
+                    <div className="text-center mt-4 fade-in">
+                        <p className="text-xs text-gray-600">
+                            Waiting for {timeWaiting}s {timeWaiting < 30 ? '(auto-redirect at 60s)' : timeWaiting < 60 ? '(redirecting soon...)' : ''}
+                        </p>
                     </div>
                 )}
 
