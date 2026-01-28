@@ -136,12 +136,20 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
     const getProgress = (): { step: number; total: number; label: string } => {
         if (jobStatus === 'COMPLETED' || redirecting) return { step: 5, total: 5, label: 'Complete' };
         if (currentAttempt > 0) return { step: 3 + currentAttempt, total: 5, label: `Fixing (Attempt ${currentAttempt})` };
-        if (buildTool) return { step: 2, total: 5, label: 'Running Tests' };
-        if (jobStatus === 'RUNNING') return { step: 1, total: 5, label: 'Initializing' };
+
+        // Handle granular status values
+        if (jobStatus === 'ANALYZING') return { step: 4, total: 5, label: 'Analyzing' };
+        if (jobStatus === 'TESTING') return { step: 3, total: 5, label: 'Running Tests' };
+        if (jobStatus === 'FIXING') return { step: 3, total: 5, label: 'Applying Fixes' };
+        if (jobStatus === 'DETECTING') return { step: 2, total: 5, label: 'Detecting Build Tool' };
+        if (jobStatus === 'CLONING') return { step: 1, total: 5, label: 'Cloning Repository' };
+        if (jobStatus === 'RUNNING') return { step: 2, total: 5, label: 'Running' };
+
         // Use simulated progress when available and no real events yet
         if (!receivedRealEvent && simulatedProgress.step > 0) {
             return { step: simulatedProgress.step, total: 5, label: simulatedProgress.label };
         }
+
         return { step: 0, total: 5, label: 'Starting' };
     };
 
@@ -332,7 +340,7 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                 clearTimeout(autoRedirectTimeoutRef.current);
             }
         };
-    }, [jobId, router, redirecting, logs.length]);
+    }, [jobId, router]);
 
 
     // SSE connection with reconnection logic
