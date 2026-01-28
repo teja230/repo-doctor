@@ -253,60 +253,77 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                 // Simulate CLONING status
                 setJobStatus("CLONING");
                 setSimulatedProgress({ step: 1, label: "Cloning Repository" });
+                setLogs(prev => [...prev, {
+                    timestamp: new Date(),
+                    type: 'clone_started',
+                    message: 'Cloning repository...',
+                    color: 'status-running'
+                }]);
 
-                // Setting up environment (3s later)
+                // Detecting build tool (3s later)
                 const t1 = setTimeout(() => {
                     if (isMounted && !redirecting && !receivedRealEvent) {
-                        setJobStatus("RUNNING");
-                        setSimulatedProgress({ step: 2, label: "Setting Up" });
+                        setJobStatus("DETECTING");
+                        setSimulatedProgress({ step: 2, label: "Detecting Build Tool" });
+                        setLogs(prev => [...prev, {
+                            timestamp: new Date(),
+                            type: 'build_detection_started',
+                            message: 'Detecting build system...',
+                            color: 'status-running'
+                        }]);
                     }
                 }, 3000);
                 simulationTimeouts.push(t1);
 
-                // Processing repository (6s later)
+                // Running tests (7s later)
                 const t2 = setTimeout(() => {
                     if (isMounted && !redirecting && !receivedRealEvent) {
-                        setSimulatedProgress({ step: 2, label: "Processing" });
+                        setJobStatus("TESTING");
+                        setSimulatedProgress({ step: 3, label: "Running Tests" });
+                        setLogs(prev => [...prev, {
+                            timestamp: new Date(),
+                            type: 'run_started',
+                            message: 'Running build and tests...',
+                            color: 'status-running'
+                        }]);
                     }
-                }, 6000);
+                }, 7000);
                 simulationTimeouts.push(t2);
 
-                // Running analysis (10s later)
+                // AI analysis starting (12s later)
                 const t3 = setTimeout(() => {
                     if (isMounted && !redirecting && !receivedRealEvent) {
-                        setSimulatedProgress({ step: 3, label: "Running Tests" });
+                        setJobStatus("ANALYZING");
+                        setSimulatedProgress({ step: 4, label: "AI Analysis" });
+                        setLogs(prev => [...prev, {
+                            timestamp: new Date(),
+                            type: 'analyzing_with_llm',
+                            message: 'Analyzing with AI (Gemini 3.0)...',
+                            color: 'status-analyzing'
+                        }]);
                     }
-                }, 10000);
+                }, 12000);
                 simulationTimeouts.push(t3);
 
-                // AI analysis starting (14s later)
+                // Generating solutions (18s later)
                 const t4 = setTimeout(() => {
                     if (isMounted && !redirecting && !receivedRealEvent) {
-                        setSimulatedProgress({ step: 3, label: "AI Analysis" });
+                        setLogs(prev => [...prev, {
+                            timestamp: new Date(),
+                            type: 'info',
+                            message: 'Generating improvement suggestions...',
+                            color: 'status-analyzing'
+                        }]);
                     }
-                }, 14000);
+                }, 18000);
                 simulationTimeouts.push(t4);
-
-                // Proposing solutions (22s later)
-                const t6 = setTimeout(() => {
-                    if (isMounted && !redirecting && !receivedRealEvent) {
-                        setSimulatedProgress({ step: 4, label: "Proposing Fixes" });
-                    }
-                }, 22000);
-                simulationTimeouts.push(t6);
             }
-        }, 15000);
+        }, 5000);
 
-        // After 30 seconds, show "View Report Now" button
+        // After 30 seconds, show "View Report Now" button (no log message - it's redundant)
         viewReportTimeoutRef.current = setTimeout(() => {
             if (isMounted && !redirecting) {
                 setShowViewReportButton(true);
-                setLogs(prev => [...prev, {
-                    timestamp: new Date(),
-                    type: 'info',
-                    message: 'Analysis is taking longer than expected. You can view the report now or continue waiting.',
-                    color: 'status-warning'
-                }]);
             }
         }, 30000);
 
