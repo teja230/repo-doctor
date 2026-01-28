@@ -505,7 +505,7 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
     }
 
     return (
-        <div className="min-h-screen p-6">
+        <div className="min-h-screen p-6 bg-gradient-to-br from-gray-950 via-gray-900 to-purple-950/30">
             {/* Header */}
             <header className="max-w-7xl mx-auto mb-8">
                 <Link href="/" className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-4 transition-colors">
@@ -522,7 +522,9 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                 {job?.repoName || "Loading..."}
                             </span>
                             {job && (
-                                <span className={`status-badge ${getStatusClass(job.status)}`}>
+                                <span className={`status-badge ${getStatusClass(job.status)} ${
+                                    job.status === 'RUNNING' ? 'animate-pulse' : ''
+                                }`}>
                                     {job.status}
                                 </span>
                             )}
@@ -585,7 +587,7 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
             <div className="max-w-7xl mx-auto grid grid-cols-12 gap-6">
                 {/* Left: Attempt Timeline */}
                 <div className="col-span-12 lg:col-span-4">
-                    <div className="card">
+                    <div className="card glass-card">
                         <h2 className="text-lg font-semibold mb-4">Attempt Timeline</h2>
 
                         <div className="timeline">
@@ -593,7 +595,7 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                 <div
                                     key={attempt.attemptNumber}
                                     className={`timeline-item ${getTimelineClass(attempt)} cursor-pointer transition-all ${selectedAttempt === attempt.attemptNumber
-                                        ? "ring-1 ring-blue-500 rounded-lg bg-blue-500/10 p-3 -ml-3"
+                                        ? "ring-2 ring-purple-500/50 rounded-lg bg-gradient-to-br from-blue-500/10 to-purple-500/10 p-3 -ml-3 shadow-lg shadow-purple-500/20"
                                         : "p-3 -ml-3 hover:bg-gray-800/50 rounded-lg"
                                         }`}
                                     onClick={() => setSelectedAttempt(attempt.attemptNumber)}
@@ -771,14 +773,14 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                         <div className="flex items-center gap-2 mb-4 flex-wrap">
                             <button
                                 onClick={() => setViewMode("logs")}
-                                className={`px-4 py-2 rounded-lg font-medium transition-colors ${viewMode === "logs" ? "bg-blue-500/20 text-blue-400" : "text-gray-400 hover:text-white hover:bg-gray-800"
+                                className={`px-4 py-2 rounded-lg font-medium transition-colors ${viewMode === "logs" ? "bg-gradient-to-r from-blue-500/20 to-cyan-500/20 text-blue-400" : "text-gray-400 hover:text-white hover:bg-gray-800"
                                     }`}
                             >
                                 📋 Logs
                             </button>
                             <button
                                 onClick={() => setViewMode("diff")}
-                                className={`px-4 py-2 rounded-lg font-medium transition-colors ${viewMode === "diff" ? "bg-blue-500/20 text-blue-400" : "text-gray-400 hover:text-white hover:bg-gray-800"
+                                className={`px-4 py-2 rounded-lg font-medium transition-colors ${viewMode === "diff" ? "bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-400" : "text-gray-400 hover:text-white hover:bg-gray-800"
                                     } ${selectedAttempt === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
                                 disabled={selectedAttempt === 0}
                             >
@@ -791,7 +793,7 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                             </button>
                             <button
                                 onClick={() => setViewMode("ai")}
-                                className={`px-4 py-2 rounded-lg font-medium transition-colors ${viewMode === "ai" ? "bg-purple-500/20 text-purple-400" : "text-gray-400 hover:text-white hover:bg-gray-800"
+                                className={`px-4 py-2 rounded-lg font-medium transition-colors ${viewMode === "ai" ? "bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-blue-500/20 text-purple-400" : "text-gray-400 hover:text-white hover:bg-gray-800"
                                     }`}
                             >
                                 🧠 AI Insights

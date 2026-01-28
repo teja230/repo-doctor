@@ -19,7 +19,6 @@ interface LogEntry {
     color: string;
 }
 
-// Spinner animation frames (braille patterns)
 const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
 export default function WaitingPage({ params }: { params: Promise<{ jobId: string }> }) {
@@ -39,11 +38,10 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
     const [reconnectAttempts, setReconnectAttempts] = useState(0);
     const logEndRef = useRef<HTMLDivElement>(null);
     const startTimeRef = useRef<Date>(new Date());
-    const minDisplayTimeRef = useRef<number>(3000); // Minimum 3 seconds display
+    const minDisplayTimeRef = useRef<number>(3000);
     const eventSourceRef = useRef<EventSource | null>(null);
     const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Format event message for terminal display
     const formatEventMessage = (event: JobEvent): string => {
         switch (event.type) {
             case 'job_started':
@@ -64,9 +62,9 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
             case 'patch_applied':
                 return `Patch applied successfully`;
             case 'job_completed':
-                return `✓✓✓ Analysis complete! Redirecting to results...`;
+                return `Analysis complete!`;
             case 'error':
-                return `✗ Error: ${event.data.message || 'Unknown error'}`;
+                return `Error: ${event.data.message || 'Unknown error'}`;
             case 'build_tool_detected':
                 return `Build tool detected: ${event.data.buildTool || 'unknown'}`;
             case 'analyzing_with_llm':
@@ -78,7 +76,6 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
         }
     };
 
-    // Get color class for event type
     const getEventColor = (type: string): string => {
         if (type.includes('complete') || type.includes('success')) return 'status-success';
         if (type.includes('error') || type.includes('fail')) return 'status-error';
@@ -87,16 +84,15 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
         return 'status-pending';
     };
 
-    // Get progress indicator
     const getProgress = (): { step: number; total: number; label: string } => {
         if (jobStatus === 'COMPLETED' || redirecting) return { step: 5, total: 5, label: 'Complete' };
-        if (currentAttempt > 0) return { step: 3 + currentAttempt, total: 5, label: `Attempt ${currentAttempt}` };
+        if (currentAttempt > 0) return { step: 3 + currentAttempt, total: 5, label: `Fixing (Attempt ${currentAttempt})` };
         if (buildTool) return { step: 2, total: 5, label: 'Running Tests' };
         if (jobStatus === 'RUNNING') return { step: 1, total: 5, label: 'Initializing' };
         return { step: 0, total: 5, label: 'Starting' };
     };
 
-    // Fetch initial job data and populate initial logs
+    // Fetch initial job data and populate logs
     useEffect(() => {
         const fetchJob = async () => {
             try {
@@ -113,10 +109,8 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                     setJobStatus(data.status);
                     if (data.buildTool) setBuildTool(data.buildTool);
 
-                    // Populate initial logs based on current job state
                     const initialLogs: LogEntry[] = [];
 
-                    // Add job started log if repo name is available
                     if (data.repoName) {
                         initialLogs.push({
                             timestamp: new Date(data.createdAt || Date.now()),
@@ -126,7 +120,6 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                         });
                     }
 
-                    // Add build tool detected if available
                     if (data.buildTool && data.buildTool !== 'UNKNOWN') {
                         initialLogs.push({
                             timestamp: new Date(data.createdAt || Date.now()),
@@ -136,7 +129,6 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                         });
                     }
 
-                    // Add attempt logs if attempts exist
                     if (data.attemptCount > 0) {
                         initialLogs.push({
                             timestamp: new Date(),
@@ -146,12 +138,10 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                         });
                     }
 
-                    // Set initial logs
                     if (initialLogs.length > 0) {
                         setLogs(initialLogs);
                     }
 
-                    // If job is already completed, redirect immediately (respecting min display time)
                     if (data.status === 'COMPLETED' || data.status === 'FAILED') {
                         const elapsed = Date.now() - startTimeRef.current.getTime();
                         const remaining = Math.max(0, minDisplayTimeRef.current - elapsed);
@@ -159,7 +149,7 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                         initialLogs.push({
                             timestamp: new Date(),
                             type: 'job_completed',
-                            message: '✓✓✓ Analysis complete! Redirecting to results...',
+                            message: 'Analysis complete!',
                             color: 'status-success'
                         });
                         setLogs(initialLogs);
@@ -191,9 +181,6 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
         const connectSSE = async () => {
             if (!isMounted) return;
 
-            console.log(`[SSE] Connecting to: ${API_URL}/api/jobs/${jobId}/events`);
-
-            // Check backend health before connecting
             const health = await checkBackendHealth();
             if (!health.healthy && isMounted) {
                 setConnectionError(true);
@@ -205,15 +192,13 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                     color: 'status-warning'
                 }]);
 
-                // Wait for backend to wake up
                 const isHealthy = await waitForBackendHealth(
                     (attempt, max, message) => {
                         if (isMounted) {
                             setReconnectAttempts(attempt);
-                            console.log(`[Health Check] ${message}`);
                         }
                     },
-                    15, // max attempts
+                    15,
                     3000,
                     8000
                 );
@@ -223,7 +208,7 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                         setLogs(prev => [...prev, {
                             timestamp: new Date(),
                             type: 'connection_error',
-                            message: 'Failed to connect to backend. Please refresh the page or try again later.',
+                            message: 'Failed to connect to backend.',
                             color: 'status-error'
                         }]);
                         setReconnecting(false);
@@ -235,7 +220,7 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                     setLogs(prev => [...prev, {
                         timestamp: new Date(),
                         type: 'connection',
-                        message: 'Backend is ready! Connecting to job stream...',
+                        message: 'Backend is ready! Connecting...',
                         color: 'status-success'
                     }]);
                     setConnectionError(false);
@@ -250,26 +235,16 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
 
             eventSource.onopen = () => {
                 if (!isMounted) return;
-                console.log("[SSE] Connection opened");
                 setConnected(true);
                 setConnectionError(false);
                 setReconnectAttempts(0);
-                setLogs(prev => [...prev, {
-                    timestamp: new Date(),
-                    type: 'connection',
-                    message: 'Connected to job stream ✓',
-                    color: 'status-success'
-                }]);
             };
 
             eventSource.onmessage = (event) => {
                 if (!isMounted) return;
-                console.log("[SSE] Message received:", event.data);
                 try {
                     const data = JSON.parse(event.data) as JobEvent;
-                    console.log("[SSE] Parsed event:", data);
 
-                    // Add to log stream
                     const message = formatEventMessage(data);
                     setLogs(prev => [...prev, {
                         timestamp: new Date(),
@@ -278,32 +253,26 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                         color: getEventColor(data.type)
                     }]);
 
-                    // Update job status
                     if (data.type === 'job_started' && data.data.repoName) {
                         setRepoName(data.data.repoName as string);
                         setJobStatus('RUNNING');
                     }
 
-                    // Update build tool
                     if (data.type === 'build_tool_detected' && data.data.buildTool) {
                         setBuildTool(data.data.buildTool as string);
                     }
 
-                    // Update attempt number
                     if (data.type === 'attempt_started' && typeof data.data.attemptNumber === 'number') {
                         setCurrentAttempt(data.data.attemptNumber);
                     }
 
-                    // Handle job completion
                     if (data.type === 'job_completed') {
                         setJobStatus('COMPLETED');
                         setRedirecting(true);
 
-                        // Ensure minimum display time has elapsed
                         const elapsed = Date.now() - startTimeRef.current.getTime();
                         const remaining = Math.max(0, minDisplayTimeRef.current - elapsed);
 
-                        // Start countdown
                         const countdownInterval = setInterval(() => {
                             setRedirectCountdown(prev => {
                                 if (prev <= 1) {
@@ -314,32 +283,22 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                             });
                         }, 1000);
 
-                        // Redirect after countdown
                         setTimeout(() => {
                             if (isMounted) {
                                 router.push(`/jobs/${jobId}`);
                             }
-                        }, remaining + 2000); // +2 seconds for countdown
+                        }, remaining + 2000);
                     }
                 } catch (e) {
-                    console.error("[SSE] Failed to parse SSE event:", e);
+                    console.error("[SSE] Failed to parse event:", e);
                 }
             };
 
-            eventSource.onerror = (error) => {
-                console.error("[SSE] Connection error:", error);
+            eventSource.onerror = () => {
                 if (!isMounted) return;
-
                 setConnected(false);
                 setConnectionError(true);
-                setLogs(prev => [...prev, {
-                    timestamp: new Date(),
-                    type: 'connection_error',
-                    message: 'Connection lost. Reconnecting...',
-                    color: 'status-warning'
-                }]);
 
-                // Auto-reconnect after 3 seconds
                 reconnectTimeoutRef.current = setTimeout(() => {
                     if (isMounted && !redirecting) {
                         eventSource.close();
@@ -353,7 +312,6 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
 
         return () => {
             isMounted = false;
-            console.log("[SSE] Closing connection");
             if (eventSourceRef.current) {
                 eventSourceRef.current.close();
             }
@@ -363,12 +321,10 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
         };
     }, [jobId, router, redirecting]);
 
-    // Auto-scroll to bottom
     useEffect(() => {
         logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [logs]);
 
-    // Spinner animation
     useEffect(() => {
         const interval = setInterval(() => {
             setSpinnerFrame(f => (f + 1) % SPINNER_FRAMES.length);
@@ -379,171 +335,183 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
     const progress = getProgress();
 
     return (
-        <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
-            <div className="w-full max-w-5xl">
-                {/* ASCII Art Header */}
-                <div className="terminal-header text-center mb-6 fade-in">
-                    <pre className="text-green-400 text-xs sm:text-sm leading-tight">
-{`╔═══════════════════════════════════════════════════════╗
-║        RepoDoctor Analysis in Progress               ║
-╚═══════════════════════════════════════════════════════╝`}
-                    </pre>
+        <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 flex items-center justify-center p-4 relative overflow-hidden">
+            {/* Animated background effects */}
+            <div className="absolute inset-0 opacity-30">
+                <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse"></div>
+                <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+            </div>
+
+            <div className="w-full max-w-4xl relative z-10">
+                {/* Modern Header */}
+                <div className="text-center mb-8 fade-in">
+                    <div className="inline-flex items-center gap-3 mb-4">
+                        <div className="relative">
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/50">
+                                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                                </svg>
+                            </div>
+                            {connected && (
+                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-gray-900 animate-pulse"></div>
+                            )}
+                        </div>
+                        <div className="text-left">
+                            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+                                RepoDoctor Analysis
+                            </h1>
+                            <p className="text-sm text-gray-500">{repoName || "Loading..."}</p>
+                        </div>
+                    </div>
                 </div>
 
-                {/* Terminal Window */}
-                <div className="terminal-window fade-in" style={{ animationDelay: "0.1s" }}>
-                    {/* Terminal Title Bar */}
-                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-800">
-                        <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-1.5">
-                                <div className="w-3 h-3 rounded-full bg-red-500/50"></div>
-                                <div className="w-3 h-3 rounded-full bg-yellow-500/50"></div>
-                                <div className="w-3 h-3 rounded-full bg-green-500/50"></div>
+                {/* Main Card */}
+                <div className="glass-card rounded-2xl border border-white/10 shadow-2xl overflow-hidden fade-in" style={{ animationDelay: "0.1s" }}>
+                    {/* Status Bar */}
+                    <div className="px-6 py-4 bg-gradient-to-r from-gray-900/50 to-gray-800/50 border-b border-white/5">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+                                    redirecting ? 'bg-green-500/20 text-green-400 animate-pulse' :
+                                    jobStatus === 'RUNNING' ? 'bg-blue-500/20 text-blue-400' :
+                                    'bg-gray-500/20 text-gray-400'
+                                }`}>
+                                    {redirecting ? '✓ COMPLETE' : jobStatus}
+                                </div>
+                                {buildTool && (
+                                    <div className="flex items-center gap-2 text-xs text-gray-400">
+                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                                        </svg>
+                                        {buildTool}
+                                    </div>
+                                )}
                             </div>
-                            <span className="text-gray-500 text-sm">repodoctor — {repoName || "..."}</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            {connected ? (
-                                <span className="flex items-center gap-1.5 text-xs text-green-400">
-                                    <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-                                    LIVE
-                                </span>
-                            ) : (
-                                <span className="text-xs text-gray-600">DISCONNECTED</span>
-                            )}
-                            <span className={`text-xs px-2 py-1 rounded ${
-                                redirecting ? 'bg-green-500/20 text-green-400 animate-pulse' :
-                                jobStatus === 'RUNNING' ? 'bg-blue-500/20 text-blue-400' :
-                                'bg-gray-500/20 text-gray-400'
-                            }`}>
-                                {redirecting ? 'COMPLETE' : jobStatus}
-                            </span>
+                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                                {connected ? (
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                                        Live
+                                    </span>
+                                ) : (
+                                    <span>Connecting...</span>
+                                )}
+                            </div>
                         </div>
                     </div>
 
-                    {/* Connection Status Banner */}
+                    {/* Connection Banner */}
                     {connectionError && reconnecting && (
-                        <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded">
-                            <div className="flex items-center gap-2">
+                        <div className="mx-6 mt-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl">
+                            <div className="flex items-center gap-3">
                                 <div className="spinner-small"></div>
                                 <div className="flex-1">
-                                    <div className="text-sm text-yellow-400 font-medium">Backend Waking Up...</div>
+                                    <div className="text-sm text-yellow-400 font-medium">Backend Waking Up</div>
                                     <div className="text-xs text-gray-400 mt-1">
-                                        Render free tier sleeps after inactivity. Waking up (attempt {reconnectAttempts}/15)
+                                        Free tier cold start (attempt {reconnectAttempts}/15)
                                     </div>
                                 </div>
                             </div>
                         </div>
                     )}
-
-                    {connectionError && !reconnecting && !connected && (
-                        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded">
-                            <div className="flex items-center gap-2">
-                                <span className="text-red-400">⚠️</span>
-                                <div className="flex-1">
-                                    <div className="text-sm text-red-400 font-medium">Connection Failed</div>
-                                    <div className="text-xs text-gray-400 mt-1">
-                                        Unable to connect to backend. Please refresh the page or try again later.
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Command Prompt Header */}
-                    <div className="mb-3">
-                        <div className="flex items-center gap-2 text-cyan-400">
-                            <span className="terminal-prompt">$</span>
-                            <span>repodoctor analyze {repoName || "..."}</span>
-                        </div>
-                    </div>
 
                     {/* Log Stream */}
-                    <div className="space-y-1 min-h-[300px] max-h-[400px] overflow-y-auto mb-4">
-                        {logs.length === 0 ? (
-                            <div className="flex items-center gap-2 text-gray-500">
-                                <span className="text-cyan-400">{SPINNER_FRAMES[spinnerFrame]}</span>
-                                <span>Initializing workspace...</span>
-                            </div>
-                        ) : (
-                            logs.map((log, i) => (
-                                <div key={i} className="terminal-log-line">
-                                    <span className="terminal-timestamp">
-                                        {log.timestamp.toLocaleTimeString('en-US', {
-                                            hour12: false,
-                                            hour: '2-digit',
-                                            minute: '2-digit',
-                                            second: '2-digit',
-                                            fractionalSecondDigits: 3
-                                        })}
-                                    </span>
-                                    <span className="terminal-prompt">{'>'}</span>
-                                    <span className={log.color}>{log.message}</span>
+                    <div className="p-6">
+                        <div className="space-y-2 min-h-[320px] max-h-[420px] overflow-y-auto custom-scrollbar">
+                            {logs.length === 0 ? (
+                                <div className="flex items-center justify-center h-[320px]">
+                                    <div className="text-center">
+                                        <div className="inline-block w-16 h-16 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mb-4"></div>
+                                        <p className="text-gray-400">Initializing workspace...</p>
+                                    </div>
                                 </div>
-                            ))
-                        )}
-                        {!redirecting && jobStatus === 'RUNNING' && (
-                            <div className="flex items-center gap-2 text-cyan-400">
-                                <span className="text-cyan-400">{SPINNER_FRAMES[spinnerFrame]}</span>
-                                <span>Processing...</span>
-                                <span className="terminal-cursor"></span>
-                            </div>
-                        )}
-                        {redirecting && (
-                            <div className="terminal-log-line">
-                                <span className="terminal-timestamp">
-                                    {new Date().toLocaleTimeString('en-US', {
-                                        hour12: false,
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                        second: '2-digit',
-                                        fractionalSecondDigits: 3
-                                    })}
-                                </span>
-                                <span className="terminal-prompt">{'>'}</span>
-                                <span className="status-success animate-pulse">
-                                    Redirecting to results in {redirectCountdown}s...
-                                </span>
-                            </div>
-                        )}
-                        <div ref={logEndRef} />
+                            ) : (
+                                logs.map((log, i) => (
+                                    <div key={i} className="log-entry flex items-start gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors">
+                                        <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
+                                            log.color === 'status-success' ? 'bg-green-400' :
+                                            log.color === 'status-error' ? 'bg-red-400' :
+                                            log.color === 'status-analyzing' ? 'bg-purple-400' :
+                                            log.color === 'status-running' ? 'bg-blue-400 animate-pulse' :
+                                            'bg-gray-500'
+                                        }`}></div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className={`text-sm ${
+                                                log.color === 'status-success' ? 'text-green-400' :
+                                                log.color === 'status-error' ? 'text-red-400' :
+                                                log.color === 'status-analyzing' ? 'text-purple-400' :
+                                                log.color === 'status-running' ? 'text-blue-400' :
+                                                'text-gray-300'
+                                            }`}>
+                                                {log.message}
+                                            </p>
+                                        </div>
+                                        <span className="text-xs text-gray-600 flex-shrink-0">
+                                            {log.timestamp.toLocaleTimeString('en-US', {
+                                                hour12: false,
+                                                hour: '2-digit',
+                                                minute: '2-digit',
+                                                second: '2-digit'
+                                            })}
+                                        </span>
+                                    </div>
+                                ))
+                            )}
+                            {!redirecting && jobStatus === 'RUNNING' && logs.length > 0 && (
+                                <div className="flex items-center gap-3 p-3">
+                                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                                    <span className="text-sm text-blue-400">{progress.label}...</span>
+                                    <span className="text-cyan-400">{SPINNER_FRAMES[spinnerFrame]}</span>
+                                </div>
+                            )}
+                            {redirecting && (
+                                <div className="flex items-center gap-3 p-3 bg-green-500/10 rounded-lg">
+                                    <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                                    <span className="text-sm text-green-400 animate-pulse">
+                                        Redirecting to results in {redirectCountdown}s...
+                                    </span>
+                                </div>
+                            )}
+                            <div ref={logEndRef} />
+                        </div>
                     </div>
 
-                    {/* Progress Bar */}
-                    <div className="mt-4 pt-4 border-t border-gray-800">
-                        <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
-                            <span>{progress.label}</span>
+                    {/* Progress Footer */}
+                    <div className="px-6 pb-6">
+                        <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
+                            <span className="font-medium">{progress.label}</span>
                             <span>Step {progress.step}/{progress.total}</span>
                         </div>
-                        <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                        <div className="relative w-full h-2 bg-gray-800 rounded-full overflow-hidden">
                             <div
-                                className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-500 ease-out"
-                                style={{ width: `${(progress.step / progress.total) * 100}%` }}
+                                className="absolute inset-0 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 transition-all duration-700 ease-out"
+                                style={{
+                                    width: `${(progress.step / progress.total) * 100}%`,
+                                    boxShadow: '0 0 20px rgba(59, 130, 246, 0.5)'
+                                }}
                             />
                         </div>
-                        {buildTool && (
-                            <div className="mt-2 text-xs text-gray-600">
-                                🔧 Build tool: <span className="text-cyan-400">{buildTool}</span>
-                            </div>
-                        )}
                     </div>
                 </div>
 
-                {/* Skip Link (escape hatch) */}
+                {/* Skip Link */}
                 {!redirecting && logs.length > 3 && (
-                    <div className="text-center mt-4 fade-in" style={{ animationDelay: "0.3s" }}>
+                    <div className="text-center mt-6 fade-in" style={{ animationDelay: "0.3s" }}>
                         <button
                             onClick={() => router.push(`/jobs/${jobId}`)}
-                            className="text-sm text-gray-600 hover:text-gray-400 transition-colors"
+                            className="text-sm text-gray-500 hover:text-gray-300 transition-colors inline-flex items-center gap-2"
                         >
-                            View detailed results →
+                            <span>View detailed results</span>
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                            </svg>
                         </button>
                     </div>
                 )}
 
-                {/* Info Footer */}
-                <div className="text-center mt-6 text-xs text-gray-700 fade-in" style={{ animationDelay: "0.4s" }}>
-                    <p>Analysis powered by Gemini 3.0</p>
+                {/* Footer */}
+                <div className="text-center mt-6 text-xs text-gray-600 fade-in" style={{ animationDelay: "0.4s" }}>
+                    <p>Powered by Gemini 3.0</p>
                 </div>
             </div>
         </div>

@@ -111,14 +111,15 @@ body {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--primary), #6366f1);
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6, #ec4899);
   color: white;
+  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.3);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, var(--primary-hover), #4f46e5);
+  background: linear-gradient(135deg, #2563eb, #7c3aed, #db2777);
   transform: translateY(-1px);
-  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 6px 24px rgba(139, 92, 246, 0.5);
 }
 
 .btn-primary:disabled {
@@ -564,5 +565,48 @@ button:focus-visible {
   .terminal-timestamp {
     min-width: 80px;
     font-size: 0.625rem;
+  }
+}
+
+/* Modern Glass Card Effect */
+.glass-card {
+  background: rgba(17, 24, 39, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Custom Scrollbar for Log Stream */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(31, 41, 55, 0.3);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(59, 130, 246, 0.5);
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 130, 246, 0.7);
+}
+
+/* Log Entry Animation */
+.log-entry {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

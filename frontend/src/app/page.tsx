@@ -312,9 +312,15 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen flex flex-col">
+    <main className="min-h-screen flex flex-col bg-gradient-to-br from-gray-950 via-gray-900 to-purple-950/30 relative overflow-hidden">
+      {/* Animated background effects */}
+      <div className="absolute inset-0 opacity-20">
+        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-1/4 left-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+      </div>
+
       {/* Hero Section */}
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex-1 flex items-center justify-center p-8 relative z-10">
         <div className="w-full max-w-2xl">
           {/* Logo and Title */}
           <div className="text-center mb-12 fade-in">
@@ -323,7 +329,7 @@ export default function Home() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <h1 className="text-4xl font-bold mb-3 bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+            <h1 className="text-4xl font-bold mb-3 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
               RepoDoctor
             </h1>
             <p className="text-gray-400 text-lg">
@@ -541,14 +547,14 @@ export default function Home() {
           </form>
 
           {/* Features */}
-          <div className="grid grid-cols-4 gap-4 mt-8 fade-in" style={{ animationDelay: "0.2s" }}>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8 fade-in" style={{ animationDelay: "0.2s" }}>
             {[
-              { icon: "🔍", title: "Diagnose", desc: "AI-powered failure analysis" },
-              { icon: "🔧", title: "Patch", desc: "Automatic code fixes" },
-              { icon: "✅", title: "Verify", desc: "Run tests until green" },
-              { icon: "🚀", title: "Create PR", desc: "Submit fix to GitHub" },
+              { icon: "🔍", title: "Diagnose", desc: "AI-powered failure analysis", color: "from-blue-500/10 to-cyan-500/10" },
+              { icon: "🔧", title: "Patch", desc: "Automatic code fixes", color: "from-purple-500/10 to-pink-500/10" },
+              { icon: "✅", title: "Verify", desc: "Run tests until green", color: "from-green-500/10 to-emerald-500/10" },
+              { icon: "🚀", title: "Create PR", desc: "Submit fix to GitHub", color: "from-orange-500/10 to-red-500/10" },
             ].map((feature, i) => (
-              <div key={i} className="text-center p-4">
+              <div key={i} className={`text-center p-4 glass-card border border-white/5 rounded-xl hover:scale-105 transition-transform bg-gradient-to-br ${feature.color}`}>
                 <div className="text-3xl mb-2">{feature.icon}</div>
                 <h3 className="font-semibold text-gray-200">{feature.title}</h3>
                 <p className="text-sm text-gray-500">{feature.desc}</p>
@@ -568,8 +574,8 @@ export default function Home() {
                     <button
                       key={filter}
                       onClick={() => setStatusFilter(filter)}
-                      className={`px-3 py-1 text-xs rounded-full capitalize transition-colors ${statusFilter === filter
-                        ? "bg-blue-500/30 text-blue-400"
+                      className={`px-3 py-1 text-xs rounded-full capitalize transition-all ${statusFilter === filter
+                        ? "bg-gradient-to-r from-blue-500/30 to-purple-500/30 text-blue-400 shadow-lg shadow-blue-500/20"
                         : "bg-gray-700/50 text-gray-400 hover:bg-gray-700"
                         }`}
                     >
@@ -586,15 +592,17 @@ export default function Home() {
                     <Link
                       key={job.id}
                       href={`/jobs/${job.id}`}
-                      className="block p-3 bg-gray-800/50 hover:bg-gray-800 rounded-lg transition-colors group"
+                      className="block p-3 glass-card hover:bg-gray-800/60 rounded-lg transition-all group border border-white/5"
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-gray-200">{job.repoName}</span>
                         <div className="flex items-center gap-2">
-                          <span className={`text-xs px-2 py-1 rounded-full ${job.status === "COMPLETED" ? "bg-green-500/20 text-green-400" :
+                          <span className={`text-xs px-2 py-1 rounded-full ${
+                            job.status === "COMPLETED" ? "bg-green-500/20 text-green-400" :
                             job.status === "FAILED" ? "bg-red-500/20 text-red-400" :
-                              "bg-blue-500/20 text-blue-400"
-                            }`}>
+                            job.status === "RUNNING" ? "bg-blue-500/20 text-blue-400 animate-pulse" :
+                            "bg-blue-500/20 text-blue-400"
+                          }`}>
                             {job.status}
                           </span>
                           <button
