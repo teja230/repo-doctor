@@ -60,8 +60,11 @@ function ErrorContent() {
     const searchParams = useSearchParams();
     const type = searchParams.get("type");
     const rawMessage = searchParams.get("message") || "An unknown error occurred";
+    const jobId = searchParams.get("jobId"); // Optional job ID to navigate back to
 
     const errorInfo = getErrorInfo(type, rawMessage);
+    const backHref = jobId ? `/jobs/${jobId}` : "/";
+    const backLabel = jobId ? "← Back to Analysis" : "← Back to Home";
 
     return (
         <div className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-gray-950 via-gray-900 to-purple-950/30">
@@ -95,10 +98,10 @@ function ErrorContent() {
                 {/* Actions */}
                 <div className="flex items-center gap-3 flex-wrap">
                     <Link
-                        href="/"
+                        href={backHref}
                         className="px-6 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors font-medium"
                     >
-                        ← Back to Home
+                        {backLabel}
                     </Link>
 
                     {errorInfo.learnMoreUrl && (

@@ -606,8 +606,8 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                         </span>
                                         <div className="flex items-center gap-2">
                                             <span className={`status-badge text-xs ${attempt.explanation && (attempt.testsRun === 0 || attempt.status === "PATCH_FAILED")
-                                                    ? "text-purple-400 bg-purple-500/20"
-                                                    : getStatusClass(attempt.status)
+                                                ? "text-purple-400 bg-purple-500/20"
+                                                : getStatusClass(attempt.status)
                                                 }`}>
                                                 {getDisplayStatus(attempt)}
                                             </span>
@@ -732,10 +732,10 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                             {events.map((event, i) => (
                                 <div key={i} className="text-sm p-2 bg-gray-800/50 rounded flex items-center gap-2">
                                     <span className={`w-2 h-2 rounded-full flex-shrink-0 ${event.type.includes("completed") || event.type.includes("success") ? "bg-green-500" :
-                                            event.type.includes("failed") || event.type.includes("error") ? "bg-red-500" :
-                                                event.type.includes("started") || event.type.includes("analyzing") ? "bg-blue-500" :
-                                                    event.type.includes("patch") ? "bg-purple-500" :
-                                                        "bg-gray-500"
+                                        event.type.includes("failed") || event.type.includes("error") ? "bg-red-500" :
+                                            event.type.includes("started") || event.type.includes("analyzing") ? "bg-blue-500" :
+                                                event.type.includes("patch") ? "bg-purple-500" :
+                                                    "bg-gray-500"
                                         }`}></span>
                                     <span className="text-blue-400 flex-1 break-words">{event.type}</span>
                                     <span className="text-gray-600 text-xs flex-shrink-0">
@@ -1142,25 +1142,28 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
 
                                 {/* Create PR Button - only show for successful completions with a GitHub repo */}
                                 {githubEnabled && job.status === "COMPLETED" && job.repoUrl?.includes("github.com") && (
-                                    <button
-                                        onClick={createPullRequest}
-                                        disabled={creatingPR}
-                                        className={`px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 ${creatingPR
-                                            ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-                                            : "bg-green-600 hover:bg-green-500 text-white"
-                                            }`}
-                                    >
-                                        {creatingPR ? (
-                                            <>
-                                                <span className="spinner-small"></span>
-                                                Preparing PR...
-                                            </>
-                                        ) : (
-                                            <>
-                                                📝 Review & Create PR
-                                            </>
-                                        )}
-                                    </button>
+                                    <div className="flex flex-col gap-1">
+                                        <button
+                                            onClick={createPullRequest}
+                                            disabled={creatingPR}
+                                            className={`px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 ${creatingPR
+                                                ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                                                : "bg-green-600 hover:bg-green-500 text-white"
+                                                }`}
+                                        >
+                                            {creatingPR ? (
+                                                <>
+                                                    <span className="spinner-small"></span>
+                                                    Preparing PR...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    📝 Review & Create PR
+                                                </>
+                                            )}
+                                        </button>
+                                        <p className="text-xs text-gray-500">Requires write access to repository</p>
+                                    </div>
                                 )}
                                 {/* PR Error message */}
                                 {prError && (
@@ -1189,7 +1192,7 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                         ) : null}
                                         {finalAttempt.riskLevel && (
                                             <span className={`px-3 py-1 rounded-full text-xs font-medium ${getRiskLevelColor(finalAttempt.riskLevel)}`}>
-                                                {finalAttempt.riskLevel} Risk
+                                                {finalAttempt.riskLevel.toUpperCase()} RISK
                                             </span>
                                         )}
                                     </div>
