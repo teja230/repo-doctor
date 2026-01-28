@@ -256,10 +256,13 @@ public class JobController {
     }
 
     /**
-     * Health check and status endpoint.
+     * Health check endpoint (legacy path for backward compatibility).
+     * @deprecated Use /api/health instead
      */
     @GetMapping("/health")
-    public ResponseEntity<?> health() {
+    @Deprecated
+    public ResponseEntity<?> jobsHealth() {
+        // Delegate to keep backward compatibility
         return ResponseEntity.ok(Map.of(
                 "status", "ok",
                 "llmConfigured", llmClient.isConfigured()));
