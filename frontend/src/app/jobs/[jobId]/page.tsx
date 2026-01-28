@@ -523,9 +523,8 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                 {job?.repoName || "Loading..."}
                             </span>
                             {job && (
-                                <span className={`status-badge ${getStatusClass(job.status)} ${
-                                    job.status === 'RUNNING' ? 'animate-pulse' : ''
-                                }`}>
+                                <span className={`status-badge ${getStatusClass(job.status)} ${job.status === 'RUNNING' ? 'animate-pulse' : ''
+                                    }`}>
                                     {job.status}
                                 </span>
                             )}
@@ -606,8 +605,7 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                             {attempt.attemptNumber === 0 ? "Baseline" : `Attempt ${attempt.attemptNumber}`}
                                         </span>
                                         <div className="flex items-center gap-2">
-                                            <span className={`status-badge text-xs ${
-                                                attempt.explanation && (attempt.testsRun === 0 || attempt.status === "PATCH_FAILED")
+                                            <span className={`status-badge text-xs ${attempt.explanation && (attempt.testsRun === 0 || attempt.status === "PATCH_FAILED")
                                                     ? "text-purple-400 bg-purple-500/20"
                                                     : getStatusClass(attempt.status)
                                                 }`}>
@@ -733,13 +731,12 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                         <div className="space-y-2 max-h-64 overflow-y-auto">
                             {events.map((event, i) => (
                                 <div key={i} className="text-sm p-2 bg-gray-800/50 rounded flex items-center gap-2">
-                                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                                        event.type.includes("completed") || event.type.includes("success") ? "bg-green-500" :
-                                        event.type.includes("failed") || event.type.includes("error") ? "bg-red-500" :
-                                        event.type.includes("started") || event.type.includes("analyzing") ? "bg-blue-500" :
-                                        event.type.includes("patch") ? "bg-purple-500" :
-                                        "bg-gray-500"
-                                    }`}></span>
+                                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${event.type.includes("completed") || event.type.includes("success") ? "bg-green-500" :
+                                            event.type.includes("failed") || event.type.includes("error") ? "bg-red-500" :
+                                                event.type.includes("started") || event.type.includes("analyzing") ? "bg-blue-500" :
+                                                    event.type.includes("patch") ? "bg-purple-500" :
+                                                        "bg-gray-500"
+                                        }`}></span>
                                     <span className="text-blue-400 flex-1 break-words">{event.type}</span>
                                     <span className="text-gray-600 text-xs flex-shrink-0">
                                         {new Date(event.timestamp).toLocaleTimeString()}
@@ -1134,6 +1131,44 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                                         : (job.errorMessage || (job.status === "COMPLETED" ? "All tests pass!" : "See attempt details for errors."))}
                                 </p>
                             </div>
+
+                            <div className="flex gap-2 flex-wrap">
+                                <button
+                                    onClick={downloadReport}
+                                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm transition-colors flex items-center gap-2"
+                                >
+                                    📥 Download Report
+                                </button>
+
+                                {/* Create PR Button - only show for successful completions with a GitHub repo */}
+                                {githubEnabled && job.status === "COMPLETED" && job.repoUrl?.includes("github.com") && (
+                                    <button
+                                        onClick={createPullRequest}
+                                        disabled={creatingPR}
+                                        className={`px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 ${creatingPR
+                                            ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                                            : "bg-green-600 hover:bg-green-500 text-white"
+                                            }`}
+                                    >
+                                        {creatingPR ? (
+                                            <>
+                                                <span className="spinner-small"></span>
+                                                Preparing PR...
+                                            </>
+                                        ) : (
+                                            <>
+                                                📝 Review & Create PR
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+                                {/* PR Error message */}
+                                {prError && (
+                                    <div className="p-2 bg-red-500/10 border border-red-500/30 rounded text-sm text-red-400 self-center">
+                                        ⚠️ {prError}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* Gemini Summary - Shown first for better context */}
@@ -1336,47 +1371,6 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                             </div>
                         )}
 
-                        {/* Action buttons - Moved to bottom */}
-                        <div className="mt-6 flex items-start justify-between gap-4 flex-wrap">
-                            <div className="flex gap-2 flex-wrap">
-                                <button
-                                    onClick={downloadReport}
-                                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm transition-colors"
-                                >
-                                    📥 Download Report
-                                </button>
-
-                                {/* Create PR Button - only show for successful completions with a GitHub repo */}
-                                {githubEnabled && job.status === "COMPLETED" && job.repoUrl?.includes("github.com") && (
-                                    <button
-                                        onClick={createPullRequest}
-                                        disabled={creatingPR}
-                                        className={`px-4 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 ${creatingPR
-                                            ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-                                            : "bg-green-600 hover:bg-green-500 text-white"
-                                            }`}
-                                    >
-                                        {creatingPR ? (
-                                            <>
-                                                <span className="spinner-small"></span>
-                                                Preparing PR...
-                                            </>
-                                        ) : (
-                                            <>
-                                                📝 Review & Create PR
-                                            </>
-                                        )}
-                                    </button>
-                                )}
-                            </div>
-
-                            {/* PR Error message */}
-                            {prError && (
-                                <div className="mt-2 p-2 bg-red-500/10 border border-red-500/30 rounded text-sm text-red-400">
-                                    ⚠️ {prError}
-                                </div>
-                            )}
-                        </div>
                     </div>
                 </div>
             )}
