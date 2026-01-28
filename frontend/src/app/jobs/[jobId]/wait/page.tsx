@@ -96,7 +96,7 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
         return { step: 0, total: 5, label: 'Starting' };
     };
 
-    // Fetch initial job data
+    // Fetch initial job data and populate initial logs
     useEffect(() => {
         const fetchJob = async () => {
             try {
@@ -113,10 +113,58 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                     setJobStatus(data.status);
                     if (data.buildTool) setBuildTool(data.buildTool);
 
+                    // Populate initial logs based on current job state
+                    const initialLogs: LogEntry[] = [];
+
+                    // Add job started log if repo name is available
+                    if (data.repoName) {
+                        initialLogs.push({
+                            timestamp: new Date(data.createdAt || Date.now()),
+                            type: 'job_started',
+                            message: `Job started: analyzing ${data.repoName}`,
+                            color: 'status-running'
+                        });
+                    }
+
+                    // Add build tool detected if available
+                    if (data.buildTool && data.buildTool !== 'UNKNOWN') {
+                        initialLogs.push({
+                            timestamp: new Date(data.createdAt || Date.now()),
+                            type: 'build_tool_detected',
+                            message: `Build tool detected: ${data.buildTool}`,
+                            color: 'status-success'
+                        });
+                    }
+
+                    // Add attempt logs if attempts exist
+                    if (data.attemptCount > 0) {
+                        initialLogs.push({
+                            timestamp: new Date(),
+                            type: 'info',
+                            message: `Running ${data.attemptCount} attempt(s)...`,
+                            color: 'status-running'
+                        });
+                    }
+
+                    // Set initial logs
+                    if (initialLogs.length > 0) {
+                        setLogs(initialLogs);
+                    }
+
                     // If job is already completed, redirect immediately (respecting min display time)
                     if (data.status === 'COMPLETED' || data.status === 'FAILED') {
                         const elapsed = Date.now() - startTimeRef.current.getTime();
                         const remaining = Math.max(0, minDisplayTimeRef.current - elapsed);
+
+                        initialLogs.push({
+                            timestamp: new Date(),
+                            type: 'job_completed',
+                            message: '✓✓✓ Analysis complete! Redirecting to results...',
+                            color: 'status-success'
+                        });
+                        setLogs(initialLogs);
+                        setRedirecting(true);
+
                         setTimeout(() => {
                             router.push(`/jobs/${jobId}`);
                         }, remaining);
