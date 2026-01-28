@@ -623,7 +623,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="text-center py-6 text-gray-600 text-sm">
-        Powered by Gemini 3 with deep thinking
+        Powered by Gemini 3.0
       </footer>
 
       {/* Toast Notification */}

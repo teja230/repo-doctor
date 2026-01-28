@@ -70,7 +70,7 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
             case 'build_tool_detected':
                 return `Build tool detected: ${event.data.buildTool || 'unknown'}`;
             case 'analyzing_with_llm':
-                return `Analyzing with AI (Gemini 2.0)...`;
+                return `Analyzing with AI (Gemini 3.0)...`;
             case 'improvement_mode':
                 return `No failing tests - analyzing for improvements...`;
             default:
@@ -495,7 +495,7 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
 
                 {/* Info Footer */}
                 <div className="text-center mt-6 text-xs text-gray-700 fade-in" style={{ animationDelay: "0.4s" }}>
-                    <p>Analysis powered by Gemini 2.0 Flash with deep thinking</p>
+                    <p>Analysis powered by Gemini 3.0</p>
                 </div>
             </div>
         </div>

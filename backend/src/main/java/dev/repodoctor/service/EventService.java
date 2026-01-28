@@ -136,11 +136,14 @@ public class EventService {
                 "isBaseline", isBaseline));
     }
 
-    public void emitRunCompleted(String jobId, int attemptNumber, int exitCode, boolean testsPass) {
+    public void emitRunCompleted(String jobId, int attemptNumber, int exitCode, boolean testsPass,
+            int testsRun, int testsFailed) {
         emit(jobId, "run_completed", Map.of(
                 "attemptNumber", attemptNumber,
                 "exitCode", exitCode,
-                "testsPass", testsPass));
+                "testsPass", testsPass,
+                "testsRun", testsRun,
+                "testsFailed", testsFailed));
     }
 
     public void emitPatchProposed(String jobId, int attemptNumber, String riskLevel, List<String> touchedFiles) {
@@ -187,5 +190,20 @@ public class EventService {
     public void emitError(String jobId, String error) {
         emit(jobId, "error", Map.of(
                 "error", error));
+    }
+
+    public void emitBuildToolDetected(String jobId, String buildTool) {
+        emit(jobId, "build_tool_detected", Map.of(
+                "buildTool", buildTool));
+    }
+
+    public void emitAnalyzingWithLLM(String jobId, int attemptNumber) {
+        emit(jobId, "analyzing_with_llm", Map.of(
+                "attemptNumber", attemptNumber));
+    }
+
+    public void emitImprovementMode(String jobId, String reason) {
+        emit(jobId, "improvement_mode", Map.of(
+                "reason", reason));
     }
 }

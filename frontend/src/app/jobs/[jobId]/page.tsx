@@ -871,7 +871,7 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                                         <span>🤖</span> AI Model
                                                     </h3>
                                                     <div className="text-lg font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
-                                                        Gemini 2.0 Flash
+                                                        Gemini 3.0
                                                     </div>
                                                 </div>
                                                 <span className="px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-lg text-xs font-medium">
@@ -882,9 +882,9 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
                                                 <div className="p-3 bg-gray-900/30 rounded border border-gray-800">
                                                     <div className="flex items-center gap-2 mb-1">
-                                                        <span className="text-sm text-gray-500">Thinking Mode</span>
+                                                        <span className="text-sm text-gray-500">Thinking Level</span>
                                                     </div>
-                                                    <span className="text-sm text-white font-medium">Low</span>
+                                                    <span className="text-sm text-white font-medium">LOW</span>
                                                     <p className="text-xs text-gray-500 mt-1">Optimized for rapid patch generation</p>
                                                 </div>
 

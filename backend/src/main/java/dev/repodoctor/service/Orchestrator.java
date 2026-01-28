@@ -83,6 +83,11 @@ public class Orchestrator {
             job.setStatus(JobStatus.RUNNING);
             jobRepository.save(job);
 
+            // Emit build tool detection event
+            if (buildTool != BuildTool.UNKNOWN) {
+                eventService.emitBuildToolDetected(jobId, buildTool.name());
+            }
+
             if (buildTool == BuildTool.UNKNOWN) {
                 failJob(job, "Unsupported project type. RepoDoctor currently supports:\n" +
                         "• Java (Maven: pom.xml, or Gradle: build.gradle/build.gradle.kts)\n" +
@@ -97,6 +102,11 @@ public class Orchestrator {
 
             // Run baseline (Attempt 0)
             Attempt baseline = runAttempt(job, 0, true);
+
+            // Check if entering improvement mode (no tests found)
+            if (baseline.getTestsRun() == 0) {
+                eventService.emitImprovementMode(jobId, "No tests detected - analyzing for code improvements");
+            }
 
             // If baseline succeeded, we still continue to generate "Improvements"
             // instead of just stopping, unless maxAttempts is 0.
@@ -220,6 +230,9 @@ public class Orchestrator {
                 attempt.setStatus(AttemptStatus.PATCHING);
                 attemptRepository.save(attempt);
 
+                // Emit analyzing with LLM event
+                eventService.emitAnalyzingWithLLM(jobId, attemptNumber);
+
                 PatchProposal proposal = llmClient.proposePatch(context);
                 log.info("Job {} Attempt {}: LLM proposed patch (risk={})", jobId, attemptNumber, proposal.riskLevel());
 
@@ -319,7 +332,8 @@ public class Orchestrator {
                     "testsPassed", result.testResults().passed(),
                     "success", result.isSuccess()));
 
-            eventService.emitRunCompleted(jobId, attemptNumber, result.exitCode(), result.isSuccess());
+            eventService.emitRunCompleted(jobId, attemptNumber, result.exitCode(), result.isSuccess(),
+                    result.testResults().run(), result.testResults().failed());
 
             // For baseline, generate analysis summary
             if (isBaseline) {

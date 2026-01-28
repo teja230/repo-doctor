@@ -222,7 +222,7 @@ The following SSE events are formatted and displayed:
 | `attempt_started` | "Baseline/Attempt N started" | Cyan |
 | `run_completed` | "Tests: Xpass Xfail" or "Build succeeded/failed" | Green/Red |
 | `build_tool_detected` | "Build tool detected: {tool}" | Cyan |
-| `analyzing_with_llm` | "Analyzing with AI (Gemini 2.0)..." | Purple |
+| `analyzing_with_llm` | "Analyzing with AI (Gemini 3.0)..." | Purple |
 | `patch_proposed` | "AI patch generated (risk: {level})" | Purple |
 | `patch_applied` | "Patch applied successfully" | Green |
 | `improvement_mode` | "No failing tests - analyzing for improvements..." | Purple |
