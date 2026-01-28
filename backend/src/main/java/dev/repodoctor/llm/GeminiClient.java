@@ -107,8 +107,13 @@ public class GeminiClient implements LLMClient {
                     "parts", List.of(Map.of("text", response))));
 
             return proposal;
+        } catch (LLMServiceUnavailableException e) {
+            // Re-throw service unavailable exceptions so they can be handled specially
+            log.error("Gemini service unavailable", e);
+            throw e;
         } catch (Exception e) {
             log.error("Failed to generate patch", e);
+            // Return empty proposal for other errors - will be caught by validation
             return new PatchProposal(
                     "",
                     "Failed to generate patch: " + e.getMessage(),
@@ -285,6 +290,17 @@ public class GeminiClient implements LLMClient {
         } catch (Exception e) {
             long elapsed = System.currentTimeMillis() - startTime;
             log.error("Exception during Gemini API call after {}ms", elapsed, e);
+
+            // Check if this is a 503 Service Unavailable error
+            if (e instanceof WebClientResponseException) {
+                WebClientResponseException webEx = (WebClientResponseException) e;
+                if (webEx.getStatusCode().value() == 503) {
+                    throw new LLMServiceUnavailableException(
+                            "Gemini API is temporarily unavailable (overloaded). Please try again in a few minutes.",
+                            e);
+                }
+            }
+
             throw new RuntimeException("Failed to call Gemini API: " + e.getMessage(), e);
         }
 

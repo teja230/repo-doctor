@@ -328,6 +328,7 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
     const getStatusClass = (status: string) => {
         const statusLower = status?.toLowerCase() || "";
         if (statusLower.includes("success") || statusLower.includes("completed")) return "status-success";
+        if (statusLower.includes("unavailable")) return "status-warning";  // LLM service temporarily down
         if (statusLower.includes("fail") || statusLower.includes("error") || statusLower.includes("invalid")) return "status-failed";
         if (statusLower.includes("pause") || statusLower.includes("wait") || statusLower.includes("rate_limit")) return "status-warning";
         if (statusLower.includes("running") || statusLower.includes("pending") || statusLower.includes("analyzing") || statusLower.includes("patching")) return "status-running";
@@ -646,8 +647,23 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                         ⏱️ {formatDuration(attempt.startedAt, attempt.completedAt)}
                                     </div>
 
-                                    {/* Only show error if no AI analysis succeeded */}
-                                    {attempt.errorMessage && !attempt.explanation && (
+                                    {/* Show LLM service unavailable with helpful message */}
+                                    {attempt.status === "LLM_SERVICE_UNAVAILABLE" && (
+                                        <div className="text-xs mt-2 bg-yellow-500/10 p-3 rounded border border-yellow-500/20">
+                                            <div className="flex items-start gap-2">
+                                                <span className="text-yellow-400 text-sm">⚠️</span>
+                                                <div>
+                                                    <div className="text-yellow-400 font-medium mb-1">Gemini Temporarily Unavailable</div>
+                                                    <div className="text-gray-300">
+                                                        {attempt.errorMessage || "The Gemini API is currently overloaded. Please try running this job again in a few minutes."}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Only show error if no AI analysis succeeded and not service unavailable */}
+                                    {attempt.errorMessage && !attempt.explanation && attempt.status !== "LLM_SERVICE_UNAVAILABLE" && (
                                         <div className="text-xs text-red-400 mt-2 bg-red-500/10 p-2 rounded border border-red-500/20">
                                             {attempt.errorMessage}
                                         </div>
@@ -1087,6 +1103,11 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                                 <span className="text-green-400">Fixed</span>
                                             </>
                                         )
+                                    ) : (finalAttempt?.status === "LLM_SERVICE_UNAVAILABLE") ? (
+                                        <>
+                                            <span className="text-2xl">⚠️</span>
+                                            <span className="text-yellow-400">Gemini Temporarily Unavailable</span>
+                                        </>
                                     ) : (finalAttempt?.explanation && finalAttempt?.status !== "SUCCESS") ? (
                                         <>
                                             <span className="text-2xl">📝</span>
@@ -1100,15 +1121,17 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                     )}
                                 </h2>
                                 <p className="text-gray-300">
-                                    {noTestsFound && isImprovementSuccess
-                                        ? "No tests detected. AI has analyzed your code and can suggest improvements or help you write tests."
-                                        : allTestsPassing
-                                            ? "All tests are passing! AI has analyzed your code for quality improvements."
-                                            : (isImprovementSuccess)
-                                                ? "AI analysis complete. Improvements have been proposed."
-                                                : (finalAttempt?.explanation && finalAttempt?.status !== "SUCCESS")
-                                                    ? "A patch was proposed but could not be verified by tests."
-                                                    : (job.errorMessage || (job.status === "COMPLETED" ? "All tests pass!" : "See attempt details for errors."))}
+                                    {finalAttempt?.status === "LLM_SERVICE_UNAVAILABLE"
+                                        ? "The Gemini API is currently overloaded. Please try running this job again in a few minutes. This is a temporary issue with Google's servers."
+                                        : noTestsFound && isImprovementSuccess
+                                            ? "No tests detected. AI has analyzed your code and can suggest improvements or help you write tests."
+                                            : allTestsPassing
+                                                ? "All tests are passing! AI has analyzed your code for quality improvements."
+                                                : (isImprovementSuccess)
+                                                    ? "AI analysis complete. Improvements have been proposed."
+                                                    : (finalAttempt?.explanation && finalAttempt?.status !== "SUCCESS")
+                                                        ? "A patch was proposed but could not be verified by tests."
+                                                        : (job.errorMessage || (job.status === "COMPLETED" ? "All tests pass!" : "See attempt details for errors."))}
                                 </p>
                             </div>
                         </div>

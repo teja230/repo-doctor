@@ -135,8 +135,12 @@ public class Orchestrator {
 
                 // Check for terminal failures
                 if (attempt.getStatus() == AttemptStatus.LLM_ERROR ||
-                        attempt.getStatus() == AttemptStatus.LLM_INVALID_OUTPUT) {
-                    completeJob(job, false, "LLM failed to generate valid patch: " + attempt.getErrorMessage());
+                        attempt.getStatus() == AttemptStatus.LLM_INVALID_OUTPUT ||
+                        attempt.getStatus() == AttemptStatus.LLM_SERVICE_UNAVAILABLE) {
+                    String failureMessage = attempt.getStatus() == AttemptStatus.LLM_SERVICE_UNAVAILABLE
+                            ? "Gemini API is temporarily unavailable. Please try again later."
+                            : "LLM failed to generate valid patch: " + attempt.getErrorMessage();
+                    completeJob(job, false, failureMessage);
                     return;
                 }
             }
@@ -156,7 +160,8 @@ public class Orchestrator {
                                 && a.getExplanation() != null
                                 && !a.getExplanation().isEmpty()
                                 && a.getStatus() != AttemptStatus.LLM_ERROR
-                                && a.getStatus() != AttemptStatus.LLM_INVALID_OUTPUT);
+                                && a.getStatus() != AttemptStatus.LLM_INVALID_OUTPUT
+                                && a.getStatus() != AttemptStatus.LLM_SERVICE_UNAVAILABLE);
 
                 if (hasPatchWithAnalysis) {
                     isSuccessfulCompletion = true;
@@ -373,6 +378,12 @@ public class Orchestrator {
                                 result.testResults().run()));
             }
 
+        } catch (dev.repodoctor.llm.LLMServiceUnavailableException e) {
+            log.error("Attempt {} failed - Gemini service unavailable", attemptNumber, e);
+            attempt.setStatus(AttemptStatus.LLM_SERVICE_UNAVAILABLE);
+            attempt.setErrorMessage("Gemini API is temporarily overloaded. Please try again in a few minutes.");
+            eventService.emitAttemptCompleted(jobId, attemptNumber, "LLM_SERVICE_UNAVAILABLE",
+                    "Gemini temporarily unavailable");
         } catch (Exception e) {
             log.error("Attempt {} failed", attemptNumber, e);
             attempt.setStatus(AttemptStatus.FAILED);
