@@ -54,9 +54,17 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
         switch (event.type) {
             case 'job_started':
                 return `Job started: analyzing ${event.data.repoName || 'repository'}`;
+            case 'clone_started':
+                return `Cloning repository...`;
+            case 'clone_completed':
+                return `Repository cloned successfully`;
+            case 'build_detection_started':
+                return `Detecting build system...`;
             case 'attempt_started':
                 const isBaseline = event.data.attemptNumber === 0;
                 return `${isBaseline ? 'Baseline' : `Attempt ${event.data.attemptNumber}`} started`;
+            case 'run_started':
+                return `Running build and tests...`;
             case 'run_completed':
                 const exitCode = event.data.exitCode as number;
                 const testsRun = event.data.testsRun as number;
@@ -90,6 +98,39 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
         if (type.includes('analyzing') || type.includes('patch')) return 'status-analyzing';
         if (type.includes('running') || type.includes('started')) return 'status-running';
         return 'status-pending';
+    };
+
+    const getCurrentPhase = (): string => {
+        // Determine phase based on recent logs and current state
+        const recentLogs = logs.slice(-5);
+
+        if (recentLogs.some(log => log.type === 'patch_proposed' || log.type === 'patch_applied' || log.type === 'analyzing_with_llm')) {
+            return 'ANALYZING';
+        }
+        if (recentLogs.some(log => log.type === 'run_started' || log.type === 'run_completed')) {
+            return 'TESTING';
+        }
+        if (recentLogs.some(log => log.type === 'build_tool_detected')) {
+            return 'DETECTING';
+        }
+        if (recentLogs.some(log => log.type === 'clone_started' || log.type === 'clone_completed')) {
+            return 'CLONING';
+        }
+        if (currentAttempt > 0) {
+            return `FIXING (${currentAttempt})`;
+        }
+
+        // During simulation, use simulatedProgress label to derive phase
+        if (!receivedRealEvent && simulatedProgress.step > 0) {
+            if (simulatedProgress.label.includes('Cloning')) return 'CLONING';
+            if (simulatedProgress.label.includes('Setting Up')) return 'SETTING UP';
+            if (simulatedProgress.label.includes('Processing')) return 'PROCESSING';
+            if (simulatedProgress.label.includes('Running Tests')) return 'TESTING';
+            if (simulatedProgress.label.includes('AI Analysis')) return 'ANALYZING';
+            if (simulatedProgress.label.includes('Proposing')) return 'ANALYZING';
+        }
+
+        return jobStatus;
     };
 
     const getProgress = (): { step: number; total: number; label: string } => {
@@ -205,25 +246,11 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                 setJobStatus("CLONING");
                 setSimulatedProgress({ step: 1, label: "Cloning Repository" });
 
-                // Generic progress indicator (not lying about specific events)
-                setLogs(prev => [...prev, {
-                    timestamp: new Date(),
-                    type: 'info',
-                    message: 'Analysis in progress...',
-                    color: 'status-running'
-                }]);
-
                 // Setting up environment (3s later)
                 const t1 = setTimeout(() => {
                     if (isMounted && !redirecting && !receivedRealEvent) {
                         setJobStatus("RUNNING");
                         setSimulatedProgress({ step: 2, label: "Setting Up" });
-                        setLogs(prev => [...prev, {
-                            timestamp: new Date(),
-                            type: 'info',
-                            message: 'Setting up analysis environment...',
-                            color: 'status-running'
-                        }]);
                     }
                 }, 3000);
                 simulationTimeouts.push(t1);
@@ -232,12 +259,6 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                 const t2 = setTimeout(() => {
                     if (isMounted && !redirecting && !receivedRealEvent) {
                         setSimulatedProgress({ step: 2, label: "Processing" });
-                        setLogs(prev => [...prev, {
-                            timestamp: new Date(),
-                            type: 'info',
-                            message: 'Processing repository...',
-                            color: 'status-running'
-                        }]);
                     }
                 }, 6000);
                 simulationTimeouts.push(t2);
@@ -246,12 +267,6 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                 const t3 = setTimeout(() => {
                     if (isMounted && !redirecting && !receivedRealEvent) {
                         setSimulatedProgress({ step: 3, label: "Running Tests" });
-                        setLogs(prev => [...prev, {
-                            timestamp: new Date(),
-                            type: 'info',
-                            message: 'Running analysis... This may take a few moments.',
-                            color: 'status-running'
-                        }]);
                     }
                 }, 10000);
                 simulationTimeouts.push(t3);
@@ -260,55 +275,17 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                 const t4 = setTimeout(() => {
                     if (isMounted && !redirecting && !receivedRealEvent) {
                         setSimulatedProgress({ step: 3, label: "AI Analysis" });
-                        setLogs(prev => [...prev, {
-                            timestamp: new Date(),
-                            type: 'info',
-                            message: 'Gemini 3.0 analysis in progress...',
-                            color: 'status-analyzing'
-                        }]);
                     }
                 }, 14000);
                 simulationTimeouts.push(t4);
-
-                // Still working (18s later)
-                const t5 = setTimeout(() => {
-                    if (isMounted && !redirecting && !receivedRealEvent) {
-                        setLogs(prev => [...prev, {
-                            timestamp: new Date(),
-                            type: 'info',
-                            message: 'Analysis is taking longer than usual...',
-                            color: 'status-warning'
-                        }]);
-                    }
-                }, 18000);
-                simulationTimeouts.push(t5);
 
                 // Proposing solutions (22s later)
                 const t6 = setTimeout(() => {
                     if (isMounted && !redirecting && !receivedRealEvent) {
                         setSimulatedProgress({ step: 4, label: "Proposing Fixes" });
-                        setLogs(prev => [...prev, {
-                            timestamp: new Date(),
-                            type: 'info',
-                            message: 'Proposing improvements...',
-                            color: 'status-analyzing'
-                        }]);
                     }
                 }, 22000);
                 simulationTimeouts.push(t6);
-
-                // Finalizing (26s later)
-                const t7 = setTimeout(() => {
-                    if (isMounted && !redirecting) {
-                        setLogs(prev => [...prev, {
-                            timestamp: new Date(),
-                            type: 'info',
-                            message: 'Finalizing analysis...',
-                            color: 'status-running'
-                        }]);
-                    }
-                }, 26000);
-                simulationTimeouts.push(t7);
             }
         }, 15000);
 
@@ -444,24 +421,50 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                     }
 
                     const message = formatEventMessage(data);
-                    setLogs(prev => [...prev, {
-                        timestamp: new Date(),
-                        type: data.type,
-                        message,
-                        color: getEventColor(data.type)
-                    }]);
 
+                    // Avoid adding duplicate consecutive messages
+                    const lastLog = logs[logs.length - 1];
+                    const isDuplicate = lastLog && lastLog.message === message && lastLog.type === data.type;
+
+                    if (!isDuplicate) {
+                        setLogs(prev => [...prev, {
+                            timestamp: new Date(),
+                            type: data.type,
+                            message,
+                            color: getEventColor(data.type)
+                        }]);
+                    }
+
+                    // Update status based on event type
                     if (data.type === 'job_started' && data.data.repoName) {
                         setRepoName(data.data.repoName as string);
                         setJobStatus('RUNNING');
                     }
 
+                    if (data.type === 'clone_started') {
+                        setJobStatus('CLONING');
+                    }
+
+                    if (data.type === 'clone_completed' || data.type === 'build_detection_started') {
+                        setJobStatus('DETECTING');
+                    }
+
                     if (data.type === 'build_tool_detected' && data.data.buildTool) {
                         setBuildTool(data.data.buildTool as string);
+                        setJobStatus('RUNNING');
+                    }
+
+                    if (data.type === 'run_started') {
+                        setJobStatus('TESTING');
+                    }
+
+                    if (data.type === 'analyzing_with_llm' || data.type === 'patch_proposed') {
+                        setJobStatus('ANALYZING');
                     }
 
                     if (data.type === 'attempt_started' && typeof data.data.attemptNumber === 'number') {
                         setCurrentAttempt(data.data.attemptNumber);
+                        setJobStatus('FIXING');
                     }
 
                     if (data.type === 'job_completed') {
@@ -570,10 +573,10 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4">
                                 <div className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${redirecting ? 'bg-green-500/20 text-green-400 animate-pulse' :
-                                    jobStatus === 'RUNNING' ? 'bg-blue-500/20 text-blue-400' :
+                                    jobStatus === 'RUNNING' || jobStatus === 'ANALYZING' || jobStatus === 'TESTING' || jobStatus === 'CLONING' || jobStatus === 'DETECTING' ? 'bg-blue-500/20 text-blue-400' :
                                         'bg-gray-500/20 text-gray-400'
                                     }`}>
-                                    {redirecting ? '✓ COMPLETE' : jobStatus}
+                                    {redirecting ? '✓ COMPLETE' : getCurrentPhase()}
                                 </div>
                                 {buildTool && (
                                     <div className="flex items-center gap-2 text-xs text-gray-400">
@@ -710,7 +713,7 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
                     <div className="text-center mt-6 fade-in" style={{ animationDelay: "0.3s" }}>
                         <button
                             onClick={() => router.push(`/jobs/${jobId}`)}
-                            className="text-sm text-gray-500 hover:text-gray-300 transition-colors inline-flex items-center gap-2"
+                            className="text-sm text-gray-400 hover:text-blue-400 transition-colors inline-flex items-center gap-2 hover:gap-3 duration-200"
                         >
                             <span>View detailed results</span>
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
