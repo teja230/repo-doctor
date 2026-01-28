@@ -551,7 +551,7 @@ export default function Home() {
             {[
               { icon: "🔍", title: "Diagnose", desc: "AI-powered failure analysis", color: "from-blue-500/10 to-cyan-500/10" },
               { icon: "🔧", title: "Patch", desc: "Automatic code fixes", color: "from-purple-500/10 to-pink-500/10" },
-              { icon: "✅", title: "Verify", desc: "Run tests until green", color: "from-green-500/10 to-emerald-500/10" },
+              { icon: "✅", title: "Verify", desc: "Fix tests & improve code", color: "from-green-500/10 to-emerald-500/10" },
               { icon: "🚀", title: "Create PR", desc: "Submit fix to GitHub", color: "from-orange-500/10 to-red-500/10" },
             ].map((feature, i) => (
               <div key={i} className={`text-center p-4 glass-card border border-white/5 rounded-xl hover:scale-105 transition-transform bg-gradient-to-br ${feature.color}`}>
@@ -597,12 +597,11 @@ export default function Home() {
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-gray-200">{job.repoName}</span>
                         <div className="flex items-center gap-2">
-                          <span className={`text-xs px-2 py-1 rounded-full ${
-                            job.status === "COMPLETED" ? "bg-green-500/20 text-green-400" :
-                            job.status === "FAILED" ? "bg-red-500/20 text-red-400" :
-                            job.status === "RUNNING" ? "bg-blue-500/20 text-blue-400 animate-pulse" :
-                            "bg-blue-500/20 text-blue-400"
-                          }`}>
+                          <span className={`text-xs px-2 py-1 rounded-full ${job.status === "COMPLETED" ? "bg-green-500/20 text-green-400" :
+                              job.status === "FAILED" ? "bg-red-500/20 text-red-400" :
+                                job.status === "RUNNING" ? "bg-blue-500/20 text-blue-400 animate-pulse" :
+                                  "bg-blue-500/20 text-blue-400"
+                            }`}>
                             {job.status}
                           </span>
                           <button

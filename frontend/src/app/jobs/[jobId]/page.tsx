@@ -1142,7 +1142,7 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
 
                                 {/* Create PR Button - only show for successful completions with a GitHub repo */}
                                 {githubEnabled && job.status === "COMPLETED" && job.repoUrl?.includes("github.com") && (
-                                    <div className="flex flex-col gap-1">
+                                    <div className="group relative">
                                         <button
                                             onClick={createPullRequest}
                                             disabled={creatingPR}
@@ -1162,7 +1162,9 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                                 </>
                                             )}
                                         </button>
-                                        <p className="text-xs text-gray-500">Requires write access to repository</p>
+                                        <p className="absolute -bottom-5 left-0 text-xs text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                            Requires write access to repository
+                                        </p>
                                     </div>
                                 )}
                                 {/* PR Error message */}

@@ -38,6 +38,8 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
     const [reconnectAttempts, setReconnectAttempts] = useState(0);
     const [showViewReportButton, setShowViewReportButton] = useState(false);
     const [timeWaiting, setTimeWaiting] = useState(0);
+    const [simulatedProgress, setSimulatedProgress] = useState({ step: 0, label: "Starting" });
+    const [receivedRealEvent, setReceivedRealEvent] = useState(false);
     const logEndRef = useRef<HTMLDivElement>(null);
     const startTimeRef = useRef<Date>(new Date());
     const minDisplayTimeRef = useRef<number>(3000);
@@ -95,6 +97,10 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
         if (currentAttempt > 0) return { step: 3 + currentAttempt, total: 5, label: `Fixing (Attempt ${currentAttempt})` };
         if (buildTool) return { step: 2, total: 5, label: 'Running Tests' };
         if (jobStatus === 'RUNNING') return { step: 1, total: 5, label: 'Initializing' };
+        // Use simulated progress when available and no real events yet
+        if (!receivedRealEvent && simulatedProgress.step > 0) {
+            return { step: simulatedProgress.step, total: 5, label: simulatedProgress.label };
+        }
         return { step: 0, total: 5, label: 'Starting' };
     };
 
@@ -192,9 +198,13 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
             }
         }, 1000);
 
-        // After 15 seconds with minimal logs, show generic progress messages
+        // After 5 seconds, start simulating if no real events received
         simulationTimeoutRef.current = setTimeout(() => {
-            if (isMounted && logs.length <= 2 && !redirecting) {
+            if (isMounted && !redirecting && !receivedRealEvent) {
+                // Simulate CLONING status
+                setJobStatus("CLONING");
+                setSimulatedProgress({ step: 1, label: "Cloning Repository" });
+
                 // Generic progress indicator (not lying about specific events)
                 setLogs(prev => [...prev, {
                     timestamp: new Date(),
@@ -205,7 +215,9 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
 
                 // Setting up environment (3s later)
                 const t1 = setTimeout(() => {
-                    if (isMounted && !redirecting) {
+                    if (isMounted && !redirecting && !receivedRealEvent) {
+                        setJobStatus("RUNNING");
+                        setSimulatedProgress({ step: 2, label: "Setting Up" });
                         setLogs(prev => [...prev, {
                             timestamp: new Date(),
                             type: 'info',
@@ -218,7 +230,8 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
 
                 // Processing repository (6s later)
                 const t2 = setTimeout(() => {
-                    if (isMounted && !redirecting) {
+                    if (isMounted && !redirecting && !receivedRealEvent) {
+                        setSimulatedProgress({ step: 2, label: "Processing" });
                         setLogs(prev => [...prev, {
                             timestamp: new Date(),
                             type: 'info',
@@ -231,7 +244,8 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
 
                 // Running analysis (10s later)
                 const t3 = setTimeout(() => {
-                    if (isMounted && !redirecting) {
+                    if (isMounted && !redirecting && !receivedRealEvent) {
+                        setSimulatedProgress({ step: 3, label: "Running Tests" });
                         setLogs(prev => [...prev, {
                             timestamp: new Date(),
                             type: 'info',
@@ -244,7 +258,8 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
 
                 // AI analysis starting (14s later)
                 const t4 = setTimeout(() => {
-                    if (isMounted && !redirecting) {
+                    if (isMounted && !redirecting && !receivedRealEvent) {
+                        setSimulatedProgress({ step: 3, label: "AI Analysis" });
                         setLogs(prev => [...prev, {
                             timestamp: new Date(),
                             type: 'info',
@@ -257,7 +272,7 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
 
                 // Still working (18s later)
                 const t5 = setTimeout(() => {
-                    if (isMounted && !redirecting) {
+                    if (isMounted && !redirecting && !receivedRealEvent) {
                         setLogs(prev => [...prev, {
                             timestamp: new Date(),
                             type: 'info',
@@ -270,7 +285,8 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
 
                 // Proposing solutions (22s later)
                 const t6 = setTimeout(() => {
-                    if (isMounted && !redirecting) {
+                    if (isMounted && !redirecting && !receivedRealEvent) {
+                        setSimulatedProgress({ step: 4, label: "Proposing Fixes" });
                         setLogs(prev => [...prev, {
                             timestamp: new Date(),
                             type: 'info',
@@ -415,6 +431,7 @@ export default function WaitingPage({ params }: { params: Promise<{ jobId: strin
 
                     // Track that we received a real event
                     lastEventTimeRef.current = new Date();
+                    setReceivedRealEvent(true); // Mark that we got real data
 
                     // Cancel simulation timeouts since we're getting real data
                     if (simulationTimeoutRef.current) {
