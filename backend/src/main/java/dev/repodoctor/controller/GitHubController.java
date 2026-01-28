@@ -79,7 +79,8 @@ public class GitHubController {
      * OAuth callback handler.
      *
      * This is called by GitHub after user authorizes the app.
-     * It exchanges the code for an access token and redirects back to the frontend.
+     * It exchanges the code for an access token, prepares the PR (creates branch, pushes changes),
+     * and redirects to GitHub's native PR creation form with pre-filled data.
      */
     @GetMapping("/callback")
     public ResponseEntity<Void> callback(
@@ -90,13 +91,23 @@ public class GitHubController {
             // Exchange code for token
             GitHubService.OAuthResult result = gitHubService.exchangeCodeForToken(code, state);
 
-            // Create the PR immediately
-            GitHubService.PullRequestResult prResult = gitHubService.createPullRequest(
+            // Prepare the PR (create branch, push changes) but don't create it via API yet
+            GitHubService.PullRequestResult prep = gitHubService.preparePullRequest(
                     result.accessToken(), result.jobId(), result.attemptNumber());
 
-            // Redirect to the PR URL
+            // Redirect to GitHub's native PR creation form with pre-filled data
+            String githubCompareUrl = String.format(
+                    "https://github.com/%s/%s/compare/%s...%s?expand=1&title=%s&body=%s",
+                    prep.owner(),
+                    prep.repo(),
+                    prep.baseBranch(),
+                    prep.branch(),
+                    URLEncoder.encode(prep.title(), StandardCharsets.UTF_8),
+                    URLEncoder.encode(prep.body(), StandardCharsets.UTF_8)
+            );
+
             return ResponseEntity.status(HttpStatus.FOUND)
-                    .location(URI.create(prResult.url()))
+                    .location(URI.create(githubCompareUrl))
                     .build();
 
         } catch (IllegalArgumentException e) {
@@ -112,7 +123,7 @@ public class GitHubController {
             log.error("OAuth callback failed", e);
             String errorUrl = String.format("%s/error?message=%s",
                     gitHubConfig.getFrontendUrl(),
-                    URLEncoder.encode("Failed to create PR: " + e.getMessage(), StandardCharsets.UTF_8));
+                    URLEncoder.encode("Failed to prepare PR: " + e.getMessage(), StandardCharsets.UTF_8));
             return ResponseEntity.status(HttpStatus.FOUND)
                     .location(URI.create(errorUrl))
                     .build();

@@ -1316,11 +1316,11 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                         {creatingPR ? (
                                             <>
                                                 <span className="spinner-small"></span>
-                                                Creating PR...
+                                                Preparing PR...
                                             </>
                                         ) : (
                                             <>
-                                                🚀 Create Pull Request
+                                                📝 Review & Create PR
                                             </>
                                         )}
                                     </button>

@@ -145,14 +145,15 @@ public class GitHubService {
     }
 
     /**
-     * Create a pull request for the specified job and attempt
+     * Prepare a pull request (create branch, push changes) without creating the PR via API.
+     * This allows redirecting users to GitHub's native PR creation form.
      *
      * @param accessToken GitHub access token
      * @param jobId The job ID
      * @param attemptNumber The attempt number to create PR from
-     * @return PullRequestResult containing PR URL and details
+     * @return PullRequestResult with url=null (PR not created yet)
      */
-    public PullRequestResult createPullRequest(String accessToken, String jobId, int attemptNumber)
+    public PullRequestResult preparePullRequest(String accessToken, String jobId, int attemptNumber)
             throws IOException, InterruptedException {
 
         // Fetch job and attempts
@@ -198,10 +199,32 @@ public class GitHubService {
         // Apply the patch by creating/updating files
         applyPatchToGitHub(accessToken, repoInfo.owner, repoInfo.name, branchName, patchContent, prTitle);
 
-        // Create the PR
-        String prUrl = createPR(accessToken, repoInfo.owner, repoInfo.name, prTitle, prBody, branchName, defaultBranch);
+        // Return result without PR URL (not created via API yet)
+        return new PullRequestResult(null, prTitle, branchName, repoInfo.owner, repoInfo.name, prBody, defaultBranch);
+    }
 
-        return new PullRequestResult(prUrl, prTitle, branchName);
+    /**
+     * Create a pull request for the specified job and attempt.
+     * This method prepares the PR (branch + changes) and then creates it via GitHub API.
+     *
+     * @param accessToken GitHub access token
+     * @param jobId The job ID
+     * @param attemptNumber The attempt number to create PR from
+     * @return PullRequestResult containing PR URL and details
+     */
+    public PullRequestResult createPullRequest(String accessToken, String jobId, int attemptNumber)
+            throws IOException, InterruptedException {
+
+        // Prepare the PR (create branch, push changes)
+        PullRequestResult prep = preparePullRequest(accessToken, jobId, attemptNumber);
+
+        // Create the PR via GitHub API
+        String prUrl = createPR(accessToken, prep.owner(), prep.repo(), prep.title(),
+                               prep.body(), prep.branch(), prep.baseBranch());
+
+        // Return result with PR URL
+        return new PullRequestResult(prUrl, prep.title(), prep.branch(),
+                                    prep.owner(), prep.repo(), prep.body(), prep.baseBranch());
     }
 
     // === Private helper methods ===
@@ -554,7 +577,15 @@ public class GitHubService {
 
     public record OAuthResult(String accessToken, String jobId, int attemptNumber) {}
 
-    public record PullRequestResult(String url, String title, String branch) {}
+    public record PullRequestResult(
+            String url,         // PR URL (null if not created yet via API)
+            String title,
+            String branch,
+            String owner,       // Repository owner
+            String repo,        // Repository name
+            String body,        // PR description
+            String baseBranch   // Base branch (e.g., "main")
+    ) {}
 
     private record RepoInfo(String owner, String name) {}
 
