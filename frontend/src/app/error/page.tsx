@@ -118,7 +118,7 @@ function ErrorContent() {
                     <p className="text-xs text-gray-500 text-center">
                         Need help? Check the{" "}
                         <a
-                            href="https://github.com/anthropics/repo-doctor"
+                            href="https://github.com/teja230/repo-doctor"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-400 hover:text-blue-300 underline"
