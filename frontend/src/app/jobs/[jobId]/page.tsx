@@ -7,12 +7,6 @@ import Link from "next/link";
 // The middleware will forward /api/* requests to the backend
 const API_URL = "";
 
-interface JobEvent {
-    type: string;
-    timestamp: string;
-    data: Record<string, unknown>;
-}
-
 interface Attempt {
     attemptNumber: number;
     status: string;
@@ -112,7 +106,6 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
     const { jobId } = use(params);
     const [job, setJob] = useState<Job | null>(null);
     const [attempts, setAttempts] = useState<Attempt[]>([]);
-    const [events, setEvents] = useState<JobEvent[]>([]);
     const [selectedAttempt, setSelectedAttempt] = useState<number | null>(null);
     const [viewMode, setViewMode] = useState<"logs" | "diff" | "ai">("logs");
     const [content, setContent] = useState<string>("");
@@ -242,17 +235,6 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                 const data = JSON.parse(event.data);
                 console.log("[SSE] Parsed event:", data);
 
-                // Keep more events and don't clear them
-                setEvents((prev) => {
-                    // Avoid duplicates based on timestamp + type
-                    const key = `${data.timestamp}-${data.type}`;
-                    const exists = prev.some(e => `${e.timestamp}-${e.type}` === key);
-                    if (exists) return prev;
-
-                    // Keep last 100 events instead of 50
-                    return [...prev.slice(-99), data];
-                });
-
                 // Refresh data on any significant event
                 if (["attempt_started", "attempt_completed", "job_completed", "patch_applied", "patch_proposed", "run_completed"].includes(data.type)) {
                     console.log(`[SSE] Triggering refresh for event type: ${data.type}`);
@@ -267,18 +249,10 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
         eventSource.onerror = (error) => {
             console.error("[SSE] Connection error:", error);
             setConnected(false);
-
-            // Add a connection error event to the log
-            setEvents((prev) => [...prev, {
-                type: 'connection_error',
-                timestamp: new Date().toISOString(),
-                data: { message: 'SSE connection lost. Will attempt to reconnect...' }
-            }]);
         };
 
         return () => {
             console.log("[SSE] Closing connection");
-            // Don't clear events when closing - keep them for history
             eventSource.close();
         };
     }, [jobId, fetchJob, fetchAttempts]);
@@ -409,7 +383,6 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
         const report = {
             job,
             attempts,
-            events,
             exportedAt: new Date().toISOString()
         };
         const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
@@ -713,66 +686,6 @@ export default function JobPage({ params }: { params: Promise<{ jobId: string }>
                                     <div className="text-xs text-gray-600 mt-2">
                                         RepoDoctor is setting up the build environment
                                     </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Events */}
-                    <div className="card mt-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-lg font-semibold">Events</h2>
-                            {events.length > 0 && (
-                                <span className="text-xs text-gray-600">
-                                    {events.length} event{events.length !== 1 ? 's' : ''}
-                                </span>
-                            )}
-                        </div>
-                        <div className="space-y-2 max-h-64 overflow-y-auto">
-                            {events.map((event, i) => (
-                                <div key={i} className="text-sm p-2 bg-gray-800/50 rounded flex items-center gap-2">
-                                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${event.type.includes("completed") || event.type.includes("success") ? "bg-green-500" :
-                                        event.type.includes("failed") || event.type.includes("error") ? "bg-red-500" :
-                                            event.type.includes("started") || event.type.includes("analyzing") ? "bg-blue-500" :
-                                                event.type.includes("patch") ? "bg-purple-500" :
-                                                    "bg-gray-500"
-                                        }`}></span>
-                                    <span className="text-blue-400 flex-1 break-words">{event.type}</span>
-                                    <span className="text-gray-600 text-xs flex-shrink-0">
-                                        {new Date(event.timestamp).toLocaleTimeString()}
-                                    </span>
-                                </div>
-                            ))}
-                            {events.length === 0 && (
-                                <div className="text-center py-6">
-                                    {!connected && (job?.status === "RUNNING" || job?.status === "PENDING") ? (
-                                        <>
-                                            <div className="text-yellow-500 mb-2">⚠️ Disconnected</div>
-                                            <div className="text-gray-500 text-sm">Connection to backend lost</div>
-                                            <div className="text-xs text-gray-600 mt-2">
-                                                Attempting to reconnect...
-                                            </div>
-                                        </>
-                                    ) : job?.status === "COMPLETED" || job?.status === "FAILED" ? (
-                                        <>
-                                            <div className="text-gray-500">Job completed</div>
-                                            <div className="text-xs text-gray-600 mt-1">
-                                                Events are only visible during active job execution
-                                            </div>
-                                        </>
-                                    ) : job?.status === "RUNNING" || job?.status === "PENDING" ? (
-                                        <>
-                                            <div className="spinner-small mx-auto mb-2"></div>
-                                            <div className="text-gray-500">Waiting for events...</div>
-                                            <div className="text-xs text-gray-600 mt-2 space-y-1">
-                                                <div>📥 Preparing workspace</div>
-                                                <div>🔍 Running initial tests</div>
-                                                <div>🧠 Analyzing with Gemini</div>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <div className="text-gray-500">No events yet...</div>
-                                    )}
                                 </div>
                             )}
                         </div>

@@ -155,7 +155,8 @@ public class Orchestrator {
                 // Check if any attempt generated a patch with AI analysis
                 // We consider PATCH_FAILED acceptable because the analysis is still valuable
                 // even if automatic application failed due to infrastructure issues
-                boolean hasPatchWithAnalysis = job.getAttempts().stream()
+                List<Attempt> allAttempts = attemptRepository.findByJob_IdOrderByAttemptNumberAsc(job.getId());
+                boolean hasPatchWithAnalysis = allAttempts.stream()
                         .anyMatch(a -> a.getAttemptNumber() > 0
                                 && a.getExplanation() != null
                                 && !a.getExplanation().isEmpty()
@@ -186,7 +187,7 @@ public class Orchestrator {
         Path workspacePath = Path.of(job.getWorkspacePath());
 
         Attempt attempt = new Attempt(attemptNumber);
-        job.addAttempt(attempt);
+        attempt.setJob(job);
         attemptRepository.save(attempt);
 
         eventService.emitAttemptStarted(jobId, attemptNumber, isBaseline);
@@ -400,7 +401,10 @@ public class Orchestrator {
     private List<PatchContext.PriorAttempt> getPriorAttempts(Job job) {
         List<PatchContext.PriorAttempt> priors = new ArrayList<>();
 
-        for (Attempt attempt : job.getAttempts()) {
+        // Query attempts directly to avoid collection synchronization issues
+        List<Attempt> attempts = attemptRepository.findByJob_IdOrderByAttemptNumberAsc(job.getId());
+
+        for (Attempt attempt : attempts) {
             if (attempt.getAttemptNumber() > 0) {
                 String diffSummary = "";
                 try {
@@ -577,7 +581,8 @@ public class Orchestrator {
         job.setErrorMessage(success ? null : summary);
         jobRepository.save(job);
 
-        eventService.emitJobCompleted(job.getId(), success, job.getAttempts().size(), summary);
+        int attemptCount = attemptRepository.findByJob_IdOrderByAttemptNumberAsc(job.getId()).size();
+        eventService.emitJobCompleted(job.getId(), success, attemptCount, summary);
     }
 
     private void failJob(Job job, String error) {
@@ -586,7 +591,8 @@ public class Orchestrator {
         job.setErrorMessage(error);
         jobRepository.save(job);
 
+        int attemptCount = attemptRepository.findByJob_IdOrderByAttemptNumberAsc(job.getId()).size();
         eventService.emitError(job.getId(), error);
-        eventService.emitJobCompleted(job.getId(), false, job.getAttempts().size(), error);
+        eventService.emitJobCompleted(job.getId(), false, attemptCount, error);
     }
 }
