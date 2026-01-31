@@ -8,6 +8,14 @@ RepoDoctor automatically diagnoses and fixes failing tests through a closed loop
 ![AI](https://img.shields.io/badge/AI-Gemini%203-purple)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
+## Try it out
+
+- This is live at: https://repodoctor.onrender.com/
+- You can use the following repos for testing:
+  - https://github.com/teja230/failing-maven-project
+  - https://github.com/teja230/mercanto-ai
+  - https://github.com/vinayanand3/dividends-alert
+
 ## 🚀 Quick Start
 
 ### Prerequisites
