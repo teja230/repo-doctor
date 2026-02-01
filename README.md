@@ -1,14 +1,14 @@
 # RepoDoctor 🩺
 
+![Architecture](https://img.shields.io/badge/Stack-Next.js%20%2B%20Spring%20Boot-blue)
+![AI](https://img.shields.io/badge/AI-Gemini%203-purple)
+![License](https://img.shields.io/badge/License-MIT-green)
+
 **Autonomous Build-Fixing Agent powered by Gemini 3**
 
 RepoDoctor automatically diagnoses and fixes failing tests through a closed loop: **diagnose → patch → run → repeat**.
 
 Built for Gemini 3 Hackathon: https://devpost.com/software/repo-doctor-drzun2
-
-![Architecture](https://img.shields.io/badge/Stack-Next.js%20%2B%20Spring%20Boot-blue)
-![AI](https://img.shields.io/badge/AI-Gemini%203-purple)
-![License](https://img.shields.io/badge/License-MIT-green)
 
 ## Try it out
 
