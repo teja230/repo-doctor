@@ -30,4 +30,14 @@ WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+
+# JVM startup optimization flags for faster cloud deployment:
+# -XX:TieredStopAtLevel=1: Use C1 compiler only (faster startup, slightly slower runtime)
+# -XX:+UseStringDeduplication: Reduce memory footprint
+# -XX:InitialRAMPercentage/-XX:MaxRAMPercentage: container-aware heap sizing
+ENTRYPOINT ["java", \
+    "-XX:TieredStopAtLevel=1", \
+    "-XX:+UseStringDeduplication", \
+    "-XX:InitialRAMPercentage=20.0", \
+    "-XX:MaxRAMPercentage=70.0", \
+    "-jar", "app.jar"]

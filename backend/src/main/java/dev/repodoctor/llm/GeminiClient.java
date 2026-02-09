@@ -7,13 +7,15 @@ import dev.repodoctor.config.RepoDoctorConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.reactive.function.client.WebClientResponseException;
-import reactor.util.retry.Retry;
-import java.time.Duration;
+import org.springframework.web.client.RestClient;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,13 +28,14 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Component
 @Primary
+@Lazy
 @ConditionalOnProperty(name = "repodoctor.gemini.api-key")
 public class GeminiClient implements LLMClient {
 
     private static final Logger log = LoggerFactory.getLogger(GeminiClient.class);
 
     private final RepoDoctorConfig config;
-    private final WebClient webClient;
+    private final RestClient restClient;
     private final ObjectMapper objectMapper;
 
     // Multi-turn conversation history per job (thought signatures)
@@ -43,10 +46,13 @@ public class GeminiClient implements LLMClient {
     public GeminiClient(RepoDoctorConfig config, ObjectMapper objectMapper) {
         this.config = config;
         this.objectMapper = objectMapper;
-        this.webClient = WebClient.builder()
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(15_000);
+        requestFactory.setReadTimeout(120_000);
+        this.restClient = RestClient.builder()
                 .baseUrl(GEMINI_API_BASE)
                 .defaultHeader("Content-Type", "application/json")
-                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(10 * 1024 * 1024))
+                .requestFactory(requestFactory)
                 .build();
         log.info("GeminiClient initialized with flash-model={}, pro-model={}",
                 config.getGemini().getFlashModel(),
@@ -258,58 +264,70 @@ public class GeminiClient implements LLMClient {
                 config.getGemini().getApiKey().substring(0, Math.min(10, config.getGemini().getApiKey().length())),
                 "***"));
 
-        String responseBody;
-        try {
-            responseBody = webClient.post()
-                    .uri(uriBuilder -> uriBuilder
-                            .path(model + ":generateContent")
-                            .queryParam("key", config.getGemini().getApiKey())
-                            .build())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue(request)
-                    .retrieve()
-                    .bodyToMono(String.class)
-                    .timeout(Duration.ofSeconds(120)) // 120 second timeout for complex patch generation
-                    .retryWhen(Retry.backoff(3, Duration.ofSeconds(30))
-                            .filter(throwable -> throwable instanceof WebClientResponseException.TooManyRequests)
-                            .doBeforeRetry(
-                                    retrySignal -> log.warn("Gemini API rate limited (429). Retrying... (Attempt {})",
-                                            retrySignal.totalRetriesInARow() + 1))
-                            .onRetryExhaustedThrow((retryBackoffSpec, retrySignal) -> retrySignal.failure()))
-                    .doOnError(throwable -> {
-                        long elapsed = System.currentTimeMillis() - startTime;
-                        log.error("✗ Gemini API call failed after {}ms: {}", elapsed, throwable.getMessage(),
-                                throwable);
-                        if (throwable instanceof WebClientResponseException) {
-                            WebClientResponseException ex = (WebClientResponseException) throwable;
-                            log.error("Response status: {}, body: {}", ex.getStatusCode(),
-                                    ex.getResponseBodyAsString());
-                        }
-                    })
-                    .block();
-        } catch (Exception e) {
-            long elapsed = System.currentTimeMillis() - startTime;
-            log.error("Exception during Gemini API call after {}ms", elapsed, e);
+        String responseBody = null;
+        int retryCount = 0;
+        int maxRetries = 3;
 
-            // Check if this is a 503 Service Unavailable error
-            if (e instanceof WebClientResponseException) {
-                WebClientResponseException webEx = (WebClientResponseException) e;
-                if (webEx.getStatusCode().value() == 503) {
-                    throw new LLMServiceUnavailableException(
-                            "Gemini API is temporarily unavailable (overloaded). Please try again in a few minutes.",
-                            e);
+        while (retryCount <= maxRetries) {
+            try {
+                ResponseEntity<String> response = restClient.post()
+                        .uri(uriBuilder -> uriBuilder
+                                .path(model + ":generateContent")
+                                .queryParam("key", config.getGemini().getApiKey())
+                                .build())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(request)
+                        .retrieve()
+                        .toEntity(String.class);
+
+                responseBody = response.getBody();
+                break; // Success, exit retry loop
+
+            } catch (HttpClientErrorException.TooManyRequests e) {
+                retryCount++;
+                if (retryCount > maxRetries) {
+                    long elapsed = System.currentTimeMillis() - startTime;
+                    log.error("✗ Gemini API rate limited after {} retries ({}ms)", maxRetries, elapsed);
+                    throw new RuntimeException("Failed to call Gemini API after rate limit retries: " + e.getMessage(), e);
                 }
-            }
+                log.warn("Gemini API rate limited (429). Retrying... (Attempt {})", retryCount);
+                try {
+                    Thread.sleep(30000 * retryCount); // Exponential backoff: 30s, 60s, 90s
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Retry interrupted", ie);
+                }
+                continue;
 
-            throw new RuntimeException("Failed to call Gemini API: " + e.getMessage(), e);
+            } catch (HttpServerErrorException e) {
+                long elapsed = System.currentTimeMillis() - startTime;
+                log.error("✗ Gemini API call failed after {}ms: status={}, body={}",
+                        elapsed, e.getStatusCode(), e.getResponseBodyAsString(), e);
+
+                // Check if this is a 503 Service Unavailable error
+                if (e.getStatusCode().value() == 503) {
+                    throw new LLMServiceUnavailableException(
+                            "Gemini API is temporarily unavailable (overloaded). Please try again in a few minutes.", e);
+                }
+                throw new RuntimeException("Failed to call Gemini API: " + e.getMessage(), e);
+
+            } catch (Exception e) {
+                long elapsed = System.currentTimeMillis() - startTime;
+                log.error("Exception during Gemini API call after {}ms", elapsed, e);
+                throw new RuntimeException("Failed to call Gemini API: " + e.getMessage(), e);
+            }
+        }
+
+        if (responseBody == null) {
+            throw new RuntimeException("Gemini API returned no response body");
         }
 
         long elapsed = System.currentTimeMillis() - startTime;
         log.info("✓ Gemini API responded in {}ms, size={}KB", elapsed,
-                responseBody != null ? responseBody.length() / 1024 : 0);
+                responseBody.length() / 1024);
 
         // Validate response is not null or empty
-        if (responseBody == null || responseBody.trim().isEmpty()) {
+        if (responseBody.trim().isEmpty()) {
             log.error("Gemini API returned null or empty response");
             throw new RuntimeException("Empty response from Gemini API");
         }
